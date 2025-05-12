@@ -1,0 +1,25 @@
+activation: !!python/name:torch.nn.modules.activation.ReLU ''
+base_channels: 128
+drop_rate: 0.2
+kernel_list:
+- 13
+- 11
+- 7
+- 5
+kernel_size: 5
+loss: !!python/name:torch.nn.functional.mse_loss ''
+lr: 0.001
+num_levels: 4
+optimizer: !!python/name:torch.optim.nadam.NAdam ''
+optimizer_kwargs:
+  betas: !!python/tuple
+  - 0.9
+  - 0.99
+  decoupled_weight_decay: false
+  eps: 1.0e-08
+  momentum_decay: 0.003288402439883893
+  weight_decay: 0
+sample_factor: 2
+scheduler_kwargs:
+  factor: 0.1
+  patience: 4
