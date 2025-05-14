@@ -1,3 +1,5 @@
+from typing import Optional, Union
+
 import joblib
 import numpy as np
 import torch
@@ -8,98 +10,105 @@ import config
 
 class Scaler:
     """
-    Standard scaler for 3D array-like inputs of shape [B, F, N], where
-      - B = batch size,
-      - F = number of features,
-      - N = feature length.
-
-    Computes per-feature mean and population std (ddof=0) over axes (0, 2),
-    then transforms with (x – mean) / std.
-
-    Args:
-        eps (float): small constant to avoid division by zero. Default: 1e-12.
+    Standard scaler for 3D tensor inputs of shape [B, F, N].
+    fit() accepts numpy arrays or torch.Tensor.
+    transform() and inverse_transform() require torch.Tensor and return torch.Tensor.
     """
+    eps: float
+    mean_: Optional[torch.Tensor]
+    std_: Optional[torch.Tensor]
+    is_fitted: bool
 
-    def __init__(self, eps: float = 1e-12):
+    def __init__(self, eps: float = 1e-12) -> None:
         self.eps = eps
-        self.mean_ = None  # shape [1, F, 1]
-        self.std_ = None  # shape [1, F, 1]
+        self.mean_ = None
+        self.std_ = None
         self.is_fitted = False
 
-    def fit(self, data):
+    def fit(self, data: Union[np.ndarray, torch.Tensor]) -> "Scaler":
         """
         Compute feature-wise mean and std from data.
 
         Args:
-            data: array-like, shape [B, F, N]
+            data: numpy.ndarray or torch.Tensor of shape [B, F, N]
 
         Returns:
             self
         """
-        arr = np.asarray(data)
+        if isinstance(data, torch.Tensor):
+            arr = data.detach().cpu().to(dtype=torch.get_default_dtype())
+        else:
+            arr = torch.from_numpy(np.asarray(data)).to(dtype=torch.get_default_dtype())
+
         if arr.ndim != 3:
-            raise ValueError(f"Input must be 3D [B, F, N], got {arr.shape}")
-        # mean over batch and length dims
-        self.mean_ = arr.mean(axis=(0, 2), keepdims=True)
-        # population std + eps
-        self.std_ = arr.std(axis=(0, 2), keepdims=True) + self.eps
+            raise ValueError(f"Input must be 3D [B, F, N], got {tuple(arr.shape)}")
+
+        mean = arr.mean(dim=(0, 2), keepdim=True)
+        std = arr.std(dim=(0, 2), unbiased=False, keepdim=True) + self.eps
+
+        self.mean_ = mean
+        self.std_ = std
         self.is_fitted = True
         return self
 
-    def transform(self, data):
+    def transform(self, data: torch.Tensor) -> torch.Tensor:
         """
         Scale new data using previously fitted parameters.
 
         Args:
-            data: array-like, shape [B, F, N]
+            data: torch.Tensor of shape [B, F, N]
 
         Returns:
-            numpy.ndarray of same shape, scaled.
+            torch.Tensor: scaled data
         """
         if not self.is_fitted:
             raise RuntimeError("Scaler has not been fitted yet.")
-        arr = np.asarray(data)
-        if arr.ndim != 3:
-            raise ValueError(f"Input must be 3D [B, F, N], got {arr.shape}")
-        return (arr - self.mean_) / self.std_
+        if not isinstance(data, torch.Tensor):
+            raise TypeError(f"transform() requires a torch.Tensor, got {type(data)}")
 
-    def fit_transform(self, data):
+        mean = self.mean_.to(device=data.device, dtype=data.dtype)  # type: ignore
+        std = self.std_.to(device=data.device, dtype=data.dtype)  # type: ignore
+        return (data - mean) / std
+
+    def fit_transform(self, data: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
         """
-        Convenience: fit to data, then return scaled data.
+        Fit to data, then return scaled data.
 
         Args:
-            data: array-like, shape [B, F, N]
+            data: numpy.ndarray or torch.Tensor of shape [B, F, N]
 
         Returns:
-            numpy.ndarray: scaled data
+            torch.Tensor: scaled data
         """
-        return self.fit(data).transform(data)
+        if not isinstance(data, torch.Tensor):
+            data = torch.from_numpy(np.asarray(data)).to(dtype=torch.get_default_dtype())
+        self.fit(data)
+        return self.transform(data)
 
-    def inverse_transform(self, data):
+    def inverse_transform(self, data: torch.Tensor) -> torch.Tensor:
         """
         Revert the scaling transformation.
 
         Args:
-            data: array-like, scaled, shape [B, F, N]
+            data: torch.Tensor of scaled data, shape [B, F, N]
 
         Returns:
-            numpy.ndarray: original-scale data
+            torch.Tensor: original-scale data
         """
         if not self.is_fitted:
             raise RuntimeError("Scaler has not been fitted yet.")
-        arr = np.asarray(data)
-        if arr.ndim != 3:
-            raise ValueError(f"Input must be 3D [B, F, N], got {arr.shape}")
-        return arr * self.std_ + self.mean_
+        if not isinstance(data, torch.Tensor):
+            raise TypeError(f"inverse_transform() requires a torch.Tensor, got {type(data)}")
+
+        mean = self.mean_.to(device=data.device, dtype=data.dtype)  # type: ignore
+        std = self.std_.to(device=data.device, dtype=data.dtype)  # type: ignore
+        return data * std + mean
 
 
 class PredictorMixin:
     """
     Generic prediction mixin for use with unscaled inputs on a model that was trained with scaled inputs
-    If no scaling was involved this function is no different than calling self.forward with eval and no_grad)
     """
-    input_slice = None
-    output_slice = None
 
     def predict(self, X):
         """

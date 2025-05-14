@@ -33,7 +33,16 @@ class leaklessDataModule(LightningDataModule):
         super().__init__()
         self.batch_size = batch_size if batch_size else config.BATCH_SIZE
         self.dataset = leaklessDataset
-        self.features = np.load(config.DATA_FILE)  # [B, F, N], B is number of sample
+
+        # make memmap, dont read anything yet
+        data = np.load(config.DATA_FILE, mmap_mode='r')  # [B, F, N], B is number of sample
+
+        # get unique samples by disabling replace
+        n_samples = data.shape[0]
+        idx = np.random.choice(n_samples, size=config.NUM_SAMPLES, replace=False)
+
+        # only these rows get read into memory
+        self.features = data[idx]
 
         if config.MAC:  # MAC rejects float64
             self.features = self.features.astype(np.float32)
@@ -49,7 +58,7 @@ class leaklessDataModule(LightningDataModule):
             self.targets = self.target_scaler.fit_transform(self.features[:, config.IN_CHANNELS:, :])  # [b, 4, n]
             self.features = np.concatenate((self.inputs, self.targets), axis=1)  # [b, 8, n]
 
-            if config.SCALER_FILE and not os.path.exists(config.SCALER_FILE):
+            if config.SCALER_FILE:
                 joblib.dump({
                     'input_scaler': self.input_scaler,
                     'target_scaler': self.target_scaler,

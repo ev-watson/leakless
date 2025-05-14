@@ -2,7 +2,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 import torch.optim
 from lightning.pytorch import Trainer, seed_everything
-from lightning.pytorch.callbacks import EarlyStopping, LearningRateMonitor
+from lightning.pytorch.callbacks import EarlyStopping, LearningRateMonitor, TQDMProgressBar
 from lightning.pytorch.loggers import TensorBoardLogger
 
 import config
@@ -25,7 +25,7 @@ params = {
     'kernel_list': [13, 11, 7, 5],
     'activation': nn.ReLU,
     'drop_rate': config.DROP_RATE,
-    'loss': F.mse_loss,
+    'loss': F.l1_loss,
     # 'loss_kwargs': {
     #
     # },
@@ -54,15 +54,24 @@ params = {
 
 config.update_hparams(params)
 
-data_module = leaklessDataModule(batch_size=32)
+data_module = leaklessDataModule()
 
 model = Leakless(**params)
+
+# training batches/4 gpus/5 to log 5 times per epoch
+ngpus = 4
+freq = 5
+log_steps = int(0.8*config.NUM_SAMPLES/config.BATCH_SIZE/ngpus/freq)
+if log_steps == 0:
+    log_steps = 1
+
 
 trainer = Trainer(
     max_epochs=config.MAX_EPOCHS,
     callbacks=[EarlyStopping(monitor='val_loss', patience=config.PATIENCE, mode='min'),
                GradientNormCallback(),
                LearningRateMonitor(logging_interval='step' if config.ON_STEP else 'epoch'),
+               TQDMProgressBar(refresh_rate=0),
                ],
     gradient_clip_val=config.GRADIENT_CLIP_VAL,
     precision=config.PRECISION,
@@ -71,7 +80,7 @@ trainer = Trainer(
     strategy='auto',
     sync_batchnorm=True,
     logger=TensorBoardLogger('prelim', name=f"unet"),
-    log_every_n_steps=10,
+    log_every_n_steps=log_steps,
 )
 
 print_block("TRAINING...")

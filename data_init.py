@@ -54,7 +54,7 @@ def generate_stack(seed, cls, nsides, mask):
 
 def main():
     nsides = config.NSIDES
-    n_samples = config.NUM_SAMPLES
+    n_samples = config.STACK_SIZE
 
     print_block(f"NSIDES: {nsides} // {n_samples} samples")
 
@@ -87,7 +87,7 @@ def main():
     # ensures unique seeds
     seeds = random.sample(range(2 ** 32 - 1), k=n_samples)
     stacks = np.empty((n_samples, 8, alm_len_from_nsides(nsides)), dtype=np.float64)
-    for i, seed in enumerate(tqdm(seeds, desc="Generating stacks")):
+    for i, seed in enumerate(tqdm(seeds, desc="Generating stacks") if config.MAC else range(len(seeds))):
         stacks[i] = generate_stack(seed, lensedCL, nsides=nsides, mask=low_mask)
 
     # save file
