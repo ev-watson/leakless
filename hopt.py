@@ -2,14 +2,17 @@ import argparse
 import signal
 
 import optuna
-import torch_optimizer as optim
+import torch
+import torch.nn.functional as F
 from lightning.pytorch import Trainer, seed_everything
-from lightning.pytorch.callbacks import EarlyStopping
+from lightning.pytorch.callbacks import EarlyStopping, TQDMProgressBar
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.plugins.environments import SLURMEnvironment
-from lion_pytorch import Lion
 
-from data_construction import *
+import config
+from data_construction import leaklessDataModule
+from models import Leakless
+from utils import leak_test, GradientNormCallback, rmwe_loss, sample_hyperparams
 
 torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_dtype(torch.float32)
 
@@ -40,9 +43,9 @@ optimizer_functions = {
     'adamw': torch.optim.AdamW,
     'nadam': torch.optim.NAdam,
     'radam': torch.optim.RAdam,
-    'adabound': optim.AdaBound,
-    'swats': optim.SWATS,
-    'lion': Lion,
+    # 'adabound': optim.AdaBound,
+    # 'swats': optim.SWATS,
+    # 'lion': Lion,
 }
 
 base_opt_kwargs = {
@@ -63,7 +66,7 @@ optimizer_hyperparams = {
     },
     'nadam': {
         **base_opt_kwargs,
-        'momentum_decay': {'type': 'float', 'low': 1e-6, 'high': 1e-1, 'log': True},
+        'momentum_decay': {'type': 'float', 'low': 1e-6, 'high': 1e-1},
         'decoupled_weight_decay': {'type': 'bool', 'default': True},
     },
     'radam': {
@@ -101,15 +104,10 @@ loss_hyperparams = {
 
 parser = argparse.ArgumentParser(description="Hyper-optimization")
 optimizer_choices = list(optimizer_functions.keys())
-model_choices = ['interp', 'gnn']
 parser.add_argument("--opt", "-o", type=str, default="adamw",
                     choices=optimizer_choices,
                     help=f"Optimizer function. Defaults to adamw")
-parser.add_argument("--model", '-m', type=str, default='gnn',
-                    choices=model_choices,
-                    help=f"Model to run. Defaults to gnn")
 args = parser.parse_args()
-config.TYPE = args.model
 
 
 def objective(trial):
@@ -128,18 +126,12 @@ def objective(trial):
 
     # TRAINING
     params['lr'] = trial.suggest_float('lr', 1e-7, 1e0)
-    # params['batch_size'] = trial.suggest_categorical('batch_size', [4, 8, 16, 32])
-    # params['gradient_clip_val'] = trial.suggest_float('gradient_clip_val', 0.7, 1.5)
 
     # ARCHITECTURE
     params['base_channels'] = trial.suggest_categorical('base_channels', [32, 64, 128, 256])
     params['num_levels'] = trial.suggest_int('num_levels', 2, 8)
     params['drop_rate'] = trial.suggest_float('drop_rate', 5e-3, 0.5)
-    params['dropout_frequency'] = trial.suggest_int('dropout_frequency', 1, params['num_layers'])
-    # params['se_block'] = trial.suggest_categorical('se_block', [True, False])
-    params['se_reduction'] = trial.suggest_categorical('se_reduction', [2, 4, 8, 16, 32, 64, 128])
-    # params['rotational_equivariance'] = trial.suggest_categorical('rotational_equivariance', [True, False])
-    # params['windowed'] = trial.suggest_categorical('windowed', [True, False])
+    # params['dropout_frequency'] = trial.suggest_int('dropout_frequency', 1, params['num_layers'])
 
     # ALGORITHMS
     # ---activation---
@@ -162,34 +154,29 @@ def objective(trial):
         'patience': trial.suggest_int('patience', 3, 6),
     }
 
-    config.ROTATIONAL_EQUIVARIANCE = params.get('rotational_equivariance', config.ROTATIONAL_EQUIVARIANCE)
-    config.WINDOWED = params.get('windowed', config.WINDOWED)
-    if config.WINDOWED:
-        params['seqlen'] = trial.suggest_categorical('seqlen', [50, 100, 150, 200, 250, 300])
-        config.SEQUENCE_LENGTH = params['seqlen']
-
     config.update_hparams(params)
 
-    data_module = NNDataModule()
+    data_module = leaklessDataModule
 
-    model = config.retrieve('model')(
-        **params
-    )
+    model = Leakless(**params)
 
     print_err(f"Starting trial with parameters: {params}")
 
     trainer = Trainer(
         max_epochs=config.MAX_EPOCHS,
         gradient_clip_val=params.get('gradient_clip_val', config.GRADIENT_CLIP_VAL),
-        callbacks=[EarlyStopping(monitor='val_loss', patience=config.PATIENCE, mode='min'),
-                   GradientNormCallback()],
+        callbacks=[
+            EarlyStopping(monitor='val_loss', patience=config.PATIENCE, mode='min'),
+            GradientNormCallback(),
+            TQDMProgressBar(refresh_rate=0),
+        ],
         plugins=[SLURMEnvironment(requeue_signal=signal.SIGUSR1)] if not config.MAC else None,
         accelerator='gpu',
         devices=-1,
         strategy='ddp' if not config.MAC else 'auto',
         sync_batchnorm=True,
         benchmark=True,
-        logger=TensorBoardLogger('hopt', name=f'{args.model}_{args.opt}_logs'),
+        logger=TensorBoardLogger('hopt', name=f'unet_logs'),
     )
 
     trainer.fit(model, datamodule=data_module)
@@ -198,12 +185,8 @@ def objective(trial):
 
     # return trainer.callback_metrics['test_loss'].item()
 
-    rtrials = 921600
-    if args.model == 'interp':
-        mae, mape = interp_test(model, ntrials=rtrials, mape=True, err=True)
-    else:
-        mae, mape = gnn_test(model, ntrials=rtrials, mape=True, err=True, mean_axis=None)
-
+    rtrials = 400
+    mae = leak_test(model, ntrials=rtrials, hopt=True, err=True, mean_axis=None)
     return mae.item()
 
 
@@ -222,7 +205,7 @@ sampler = optuna.samplers.TPESampler(
     seed=seed,
 )
 
-study_name = f"{args.model}_{args.opt}_study"
+study_name = f"unet_study"
 storage_name = f"sqlite:///{study_name}.db"
 study = optuna.create_study(direction='minimize',
                             storage=storage_name,

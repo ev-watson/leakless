@@ -68,11 +68,12 @@ if log_steps == 0:
 
 trainer = Trainer(
     max_epochs=config.MAX_EPOCHS,
-    callbacks=[EarlyStopping(monitor='val_loss', patience=config.PATIENCE, mode='min'),
-               GradientNormCallback(),
-               LearningRateMonitor(logging_interval='step' if config.ON_STEP else 'epoch'),
-               TQDMProgressBar(refresh_rate=0),
-               ],
+    callbacks=[
+        EarlyStopping(monitor='val_loss', patience=config.PATIENCE, mode='min'),
+        GradientNormCallback(),
+        LearningRateMonitor(logging_interval='step' if config.ON_STEP else 'epoch'),
+        TQDMProgressBar(refresh_rate=0),
+    ],
     gradient_clip_val=config.GRADIENT_CLIP_VAL,
     precision=config.PRECISION,
     accelerator='gpu',

@@ -29,14 +29,14 @@ def print_analysis(g, t, ntrials, mape, suppress, err, verbose, axis=None):
         return mae
 
 
-def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, mape=False, suppress=False, err=False, verbose=False, mean_axis=None):
+def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, suppress=False, err=False, verbose=False, mean_axis=None):
     """
     Performs random input testing to evaluate the accuracy of GNN's acceleration prediction.
     ntrials will be rounded to nearest i
     :param model: PyTorch model
     :param ntrials: int, number of trials
     :param batch_size: int, batch size for prediction, default 16
-    :param mape: bool, enable mape
+    :param hopt: bool, returns mae instead of tensors for hyper-optimization
     :param suppress: bool, if true, suppresses print statements.
     :param err: bool, enable printing to stderr as well.
     :param verbose: bool, enable verbose output
@@ -75,5 +75,8 @@ def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, mape=False, supp
     if not suppress:
         print_block("TESTING COMPLETE, BEGINNING ANALYSIS", err=err)
 
-    print_analysis(pred_vals, target_data, ntrials, mape, suppress, err, verbose, axis=mean_axis)
-    return input_data.cpu().numpy(), pred_vals.cpu().numpy(), target_data.cpu().numpy()
+    mae = print_analysis(pred_vals, target_data, ntrials, False, suppress, err, verbose, axis=mean_axis)
+    if hopt:
+        return mae
+    else:
+        return input_data.cpu().numpy(), pred_vals.cpu().numpy(), target_data.cpu().numpy()

@@ -29,6 +29,11 @@ from .losses import (
     calc_mape
 )
 
+from .optuna_helpers import (
+    sample_hyperparams,
+    print_best_optuna,
+)
+
 from .torch_utils import (
     Scaler,
     PredictorMixin,
