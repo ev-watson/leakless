@@ -227,7 +227,7 @@ class SpectralUNet(LightningModule):
 
         # bottleneck
         x = self.bottleneck(x)  # [B, BC*2**L, N/D**L]
-        x = self.dense_head(x)  # [B, BC*2**L, N/D**L]
+        # x = self.dense_head(x)  # [B, BC*2**L, N/D**L]
 
         # decoding
         for idx, dec in enumerate(self.decoders):

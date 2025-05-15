@@ -8,7 +8,7 @@ from lightning.pytorch.loggers import TensorBoardLogger
 import config
 from data_construction import leaklessDataModule
 from models import Leakless
-from utils import GradientNormCallback, print_block
+from utils import GradientNormCallback, print_block, rmwe_loss
 
 seed = config.SEED if config.SEED else np.random.randint(1, 10000)
 print_block(f"SEED: {seed}")
@@ -25,7 +25,7 @@ params = {
     'kernel_list': [13, 11, 7, 5],
     'activation': nn.ReLU,
     'drop_rate': config.DROP_RATE,
-    'loss': F.l1_loss,
+    'loss': rmwe_loss,
     # 'loss_kwargs': {
     #
     # },

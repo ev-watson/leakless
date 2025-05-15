@@ -30,9 +30,9 @@ loss_functions = {
     'l1': F.l1_loss,
     'smooth_l1': F.smooth_l1_loss,
     'huber': F.huber_loss,
-    'mse': F.mse_loss,
+    # 'mse': F.mse_loss,
     'rmwe': rmwe_loss,
-    'zero-one': zero_one_approximation_loss,
+    # 'zero-one': zero_one_approximation_loss,
 }
 
 optimizer_functions = {
@@ -132,8 +132,8 @@ def objective(trial):
     # params['gradient_clip_val'] = trial.suggest_float('gradient_clip_val', 0.7, 1.5)
 
     # ARCHITECTURE
-    params['hidden_dim'] = trial.suggest_categorical('hidden_dim', [32, 64, 128, 256, 512, 1024, 2048])
-    params['num_layers'] = trial.suggest_int('num_layers', 2, 8)
+    params['base_channels'] = trial.suggest_categorical('base_channels', [32, 64, 128, 256])
+    params['num_levels'] = trial.suggest_int('num_levels', 2, 8)
     params['drop_rate'] = trial.suggest_float('drop_rate', 5e-3, 0.5)
     params['dropout_frequency'] = trial.suggest_int('dropout_frequency', 1, params['num_layers'])
     # params['se_block'] = trial.suggest_categorical('se_block', [True, False])

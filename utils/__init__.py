@@ -23,8 +23,8 @@ from .logging_utils import (
 )
 
 from .losses import (
-    # rmwe_loss,
-    # zero_one_approximation_loss
+    rmwe_loss,
+    zero_one_approximation_loss,
     calc_mae,
     calc_mape
 )

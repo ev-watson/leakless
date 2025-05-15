@@ -14,32 +14,34 @@ def zero_one_approximation_loss(guess, target, sigma):
     return loss.mean()
 
 
-def rmwe_loss(g, t, reduction='mean'):
+def rmwe_loss(g, t, reduction='mean', eps=1e-8):
     """
     Relative mean weighted error
     :param g: array-like, guess
     :param t: array-like, target
-    :param reduction: 'mean' or 'sum'
+    :param reduction: str, 'mean' or 'sum'
+    :param eps: float, small number to avoid division by zero, default 1e-8
     :return: rmwe of guess from target
     """
     if reduction == 'mean':
-        return torch.mean(torch.square(t - g) / torch.square(t))
+        return torch.mean(torch.square(t - g) / torch.square(t).clamp(min=eps**2))
     elif reduction == 'sum':
-        return torch.sum(torch.square(t - g) / torch.square(t))
+        return torch.sum(torch.square(t - g) / torch.square(t).clamp(min=eps**2))
     else:
         raise ValueError('reduction must be either "mean" or "sum"')
 
 
-def mape_loss(g, t, reduction='mean'):
+def mape_loss(g, t, reduction='mean', eps=1e-10):
     """
     MAPE loss
     :param g: array-like, guess
     :param t: array-like, target
     :param reduction: str, only 'mean'
+    :param eps: float, small number to avoid division by zero, default 1e-10
     :return: MAPE of guess from target
     """
     if reduction == 'mean':
-        return torch.mean(torch.abs((g - t) / t)) * 100
+        return torch.mean(torch.abs((g - t) / (t+eps))) * 100
     else:
         raise NotImplementedError('Only mean reduction is supported.')
 
