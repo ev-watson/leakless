@@ -12,7 +12,7 @@ from lightning.pytorch.plugins.environments import SLURMEnvironment
 import config
 from data_construction import leaklessDataModule
 from models import Leakless
-from utils import leak_test, GradientNormCallback, rmwe_loss, sample_hyperparams
+from utils import print_block, print_err, leak_test, GradientNormCallback, rmwe_loss, sample_hyperparams, clear_local_ckpt_files
 
 torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_dtype(torch.float32)
 
@@ -114,6 +114,8 @@ def objective(trial):
     print_block(f"TRIAL: {trial.number}, SEED: {seed}", err=True)
     seed_everything(seed)
     clear_local_ckpt_files()
+    config.ROLLING = False
+    config.SCALE = True
 
     """
     Build the hyperparameter dictionary and study parameter list.
@@ -128,10 +130,15 @@ def objective(trial):
     params['lr'] = trial.suggest_float('lr', 1e-7, 1e0)
 
     # ARCHITECTURE
-    params['base_channels'] = trial.suggest_categorical('base_channels', [32, 64, 128, 256])
-    params['num_levels'] = trial.suggest_int('num_levels', 2, 8)
-    params['drop_rate'] = trial.suggest_float('drop_rate', 5e-3, 0.5)
+    params['base_channels'] = trial.suggest_categorical('base_channels', [config.NSIDES//2, config.NSIDES, config.NSIDES*2])
+    params["conv_block_levels"] = trial.suggest_int('conv_block_levels', 1, 2)
+    params['num_levels'] = trial.suggest_int('num_levels', 2, 5)
+    params['drop_rate'] = trial.suggest_float('drop_rate', 0.01, 0.5)
     # params['dropout_frequency'] = trial.suggest_int('dropout_frequency', 1, params['num_layers'])
+    # params['sample_factor'] = trial.suggest_categorical('sample_factor', [2, 4])
+
+    # make kernel list count down in odd numbers to reach 1 based on num_levels
+    params['kernel_list'] = list(reversed([1 + 2*i for i in range(params['num_levels'])]))
 
     # ALGORITHMS
     # ---activation---
@@ -155,10 +162,18 @@ def objective(trial):
     }
 
     config.update_hparams(params)
+    config.N_CONV_LAYERS_IN_ONE_BLOCK = params['conv_block_levels']
 
-    data_module = leaklessDataModule
+    data_module = leaklessDataModule()
 
     model = Leakless(**params)
+
+    # training batches/4 gpus/5 to log 5 times per epoch
+    ngpus = 4
+    freq = 5
+    log_steps = int(0.8 * config.NUM_SAMPLES / config.BATCH_SIZE / ngpus / freq)
+    if log_steps == 0:
+        log_steps = 1
 
     print_err(f"Starting trial with parameters: {params}")
 
@@ -168,7 +183,7 @@ def objective(trial):
         callbacks=[
             EarlyStopping(monitor='val_loss', patience=config.PATIENCE, mode='min'),
             GradientNormCallback(),
-            TQDMProgressBar(refresh_rate=0),
+            TQDMProgressBar(refresh_rate=log_steps),
         ],
         plugins=[SLURMEnvironment(requeue_signal=signal.SIGUSR1)] if not config.MAC else None,
         accelerator='gpu',
@@ -177,6 +192,7 @@ def objective(trial):
         sync_batchnorm=True,
         benchmark=True,
         logger=TensorBoardLogger('hopt', name=f'unet_logs'),
+        log_every_n_steps=log_steps,
     )
 
     trainer.fit(model, datamodule=data_module)
@@ -185,7 +201,7 @@ def objective(trial):
 
     # return trainer.callback_metrics['test_loss'].item()
 
-    rtrials = 400
+    rtrials = 1000
     mae = leak_test(model, ntrials=rtrials, hopt=True, err=True, mean_axis=None)
     return mae.item()
 
@@ -200,8 +216,8 @@ def objective(trial):
 
 # single-objective sampler
 sampler = optuna.samplers.TPESampler(
-    n_startup_trials=15,  # 10
-    n_ei_candidates=36,  # 24
+    n_startup_trials=10,  # 10
+    n_ei_candidates=24,  # 24
     seed=seed,
 )
 

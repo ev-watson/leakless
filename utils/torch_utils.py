@@ -118,15 +118,27 @@ class PredictorMixin:
         :return: Tensor of predicted target values.
         """
         self.eval()
-        device = next(self.parameters()).device
-        scalers = joblib.load(config.SCALER_FILE)
-        input_scaler = scalers['input_scaler']
-        target_scaler = scalers['target_scaler']
+        if config.SCALE:
+            device = next(self.parameters()).device
+            scalers = joblib.load(config.SCALER_FILE)
+            input_scaler = scalers['input_scaler']
+            target_scaler = scalers['target_scaler']
 
-        input_data = input_scaler.transform(X.to(dtype=torch.get_default_dtype(), device=device))
-        with torch.no_grad():
-            output_scaled = self.forward(input_data)
-        return target_scaler.inverse_transform(output_scaled)
+            input_data = input_scaler.transform(X.to(dtype=torch.get_default_dtype(), device=device))
+            with torch.no_grad():
+                output_scaled = self.forward(input_data)
+                output = target_scaler.inverse_transform(output_scaled)
+        else:
+            with torch.no_grad():
+                output = self.forward(X)
+        return output
+
+
+class RollingBufferCallback(Callback):
+    def on_train_epoch_end(self, trainer, pl_module):
+        ds = trainer.datamodule.train_dataset
+        if hasattr(ds, 'on_epoch_end'):
+            ds.on_epoch_end()
 
 
 class GradientNormCallback(Callback):

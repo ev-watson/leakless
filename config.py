@@ -1,44 +1,45 @@
+from sys import platform
+
 # ENVIRONMENT
 SEED = 42
-MAC = True
+MAC = platform == 'darwin'  # True if running on mac, False if anything else
 
 # CHANGING NSIDES MEANS RERUNNING DATA_INIT
 NSIDES = 64    # Project computation scales as O(NSIDES**2) right now
 # CHANGING NSIDES MEANS RERUNNING DATA_INIT
 
 # DATA GENERATION
-SCALE = True
-STACK_SIZE = 5000
-NUM_SAMPLES = 1000
+ROLLING = not MAC and True      # does not work with scaling or mac
+SCALE = not ROLLING and True    # only turns on if True and ROLLING is not on
+STACK_SIZE = 50000      # total dataset available to pull from
+NUM_SAMPLES = 4500     # initial number of pulls to use during training/val/testing
+REPLACE_FRAC = 0.10     # percent of existing training data to replace with newly generated data (0.1 means 10% replaced)
 
 # DATA HANDLING
 BATCH_SIZE = 4
-NUM_WORKERS = 8
+NUM_WORKERS = 16
 PREFETCH_FACTOR = 4
 PIN_MEMORY = True
 
 # ENCODING/DECODING
 IN_CHANNELS = 4
 BASE_CHANNELS = 2*NSIDES
-KERNEL_SIZE = 5
+KERNEL_LIST = [7, 5, 3, 1]
 SAMPLE_FACTOR = 2
 BIAS = True
-GATE_RESOLUTION = NSIDES//4
 
 # GENERAL ARCHITECTURE
 NUM_LEVELS = 4
 N_CONV_LAYERS_IN_ONE_BLOCK = 1
-DROP_RATE = 0.2
-DENSE_DIM = 3 * NSIDES
+DROP_RATE = 0.35
 
 # TRAINING
 LEARNING_RATE = 1e-3
 MAX_EPOCHS = 50
 ENABLE_EARLY_STOPPING = True
 PATIENCE = 7
-GRADIENT_CLIP_VAL = 1.5
+GRADIENT_CLIP_VAL = 0.5
 WEIGHT_DECAY = 7e-3
-PRECISION = '16-mixed' if not MAC else None      # lightning Trainer precision argument
 
 # AUX
 DATA_FILE = 'stacks.npy'
@@ -52,6 +53,7 @@ if MAC:
     NUM_WORKERS = 0
     PREFETCH_FACTOR = None
     PIN_MEMORY = False
+    NUM_SAMPLES = 3000
 
 
 # HPARAMS

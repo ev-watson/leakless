@@ -28,45 +28,87 @@ class leaklessDataset(Dataset):
         return x, y
 
 
+class indexedDataset(Dataset):
+    def __init__(self, indices, datafile=config.DATA_FILE):
+        super().__init__()
+        self._data = np.load(datafile, mmap_mode='r')  # [b, 2c, n], b is number of samples
+        self.indices = np.array(indices, dtype=np.int64)    # must be np array for indexing
+        self.input_slice = slice(None, config.IN_CHANNELS)
+        self.target_slice = slice(config.IN_CHANNELS, None)
+
+    def __len__(self):
+        return len(self.indices)
+
+    def __getitem__(self, idx):
+        x = self._data[self.indices[idx], self.input_slice, :]
+        y = self._data[self.indices[idx], self.target_slice, :]
+        return x, y
+
+
+class rollingDataset(indexedDataset):
+    def __init__(self, indices, datafile=config.DATA_FILE, replace_frac=config.REPLACE_FRAC):
+        super().__init__(indices, datafile)
+        self._data = np.load(datafile, mmap_mode='r')
+        self.input_slice = slice(None, config.IN_CHANNELS)
+        self.target_slice = slice(config.IN_CHANNELS, None)
+        self.buffer_size = len(self.indices)
+        self.replace_frac = replace_frac
+
+    def on_epoch_end(self):
+        n_replace = int(self.replace_frac * self.buffer_size)
+        old_idx = np.random.choice(self.buffer_size, size=n_replace, replace=False)
+        new_idx = np.random.choice(len(self._data), size=n_replace, replace=False)
+        self.indices[old_idx] = new_idx
+
+
 class leaklessDataModule(LightningDataModule):
     def __init__(self, batch_size=None):
         super().__init__()
         self.batch_size = batch_size if batch_size else config.BATCH_SIZE
-        self.dataset = leaklessDataset
 
-        # make memmap, dont read anything yet
-        data = np.load(config.DATA_FILE, mmap_mode='r')  # [B, F, N], B is number of sample
+        # default dataset
+        self.dataset = indexedDataset if config.ROLLING else leaklessDataset
 
         # get unique samples by disabling replace
-        n_samples = data.shape[0]
-        idx = np.random.choice(n_samples, size=config.NUM_SAMPLES, replace=False)
+        n_samples = config.STACK_SIZE
+        total_len = config.NUM_SAMPLES
+        idxs = np.random.choice(n_samples, size=total_len, replace=False)
 
-        # only these rows get read into memory
-        self.features = data[idx]
+        train_idx = int(0.8 * total_len)
+        val_idx = int(0.9 * total_len)
 
-        if config.MAC:  # MAC rejects float64
-            self.features = self.features.astype(np.float32)
+        if config.ROLLING:
+            self.train_dataset = rollingDataset(idxs[:train_idx])
+            self.val_dataset = self.dataset(idxs[train_idx:val_idx])
+            self.test_dataset = self.dataset(idxs[val_idx:])
 
-        total_len = self.features.shape[0]
-        train_size = int(0.8 * total_len)
-        val_size = int(0.1 * total_len)
+        else:
+            # make memmap, dont read anything yet
+            data = np.load(config.DATA_FILE, mmap_mode='r')  # [B, F, N], B is number of sample
 
-        if config.SCALE:
-            self.input_scaler = Scaler()
-            self.target_scaler = Scaler()
-            self.inputs = self.input_scaler.fit_transform(self.features[:, :config.IN_CHANNELS, :])  # [b, 4, n]
-            self.targets = self.target_scaler.fit_transform(self.features[:, config.IN_CHANNELS:, :])  # [b, 4, n]
-            self.features = np.concatenate((self.inputs, self.targets), axis=1)  # [b, 8, n]
+            # only these rows get read into memory
+            self.features = data[idxs]
 
-            if config.SCALER_FILE:
-                joblib.dump({
-                    'input_scaler': self.input_scaler,
-                    'target_scaler': self.target_scaler,
-                }, config.SCALER_FILE)
+            if config.MAC:  # MAC rejects float64
+                self.features = self.features.astype(np.float32)
 
-        self.train_dataset = self.dataset(self.features[:train_size])
-        self.val_dataset = self.dataset(self.features[train_size:train_size + val_size])
-        self.test_dataset = self.dataset(self.features[train_size + val_size:])
+            if config.SCALE:
+                # scale input and targets separately
+                self.input_scaler = Scaler()
+                self.target_scaler = Scaler()
+                self.inputs = self.input_scaler.fit_transform(self.features[:, :config.IN_CHANNELS, :])  # [b, 4, n]
+                self.targets = self.target_scaler.fit_transform(self.features[:, config.IN_CHANNELS:, :])  # [b, 4, n]
+                self.features = np.concatenate((self.inputs, self.targets), axis=1)  # [b, 8, n]
+
+                if config.SCALER_FILE:
+                    joblib.dump({
+                        'input_scaler': self.input_scaler,
+                        'target_scaler': self.target_scaler,
+                    }, config.SCALER_FILE)
+
+            self.train_dataset = self.dataset(self.features[:train_idx])
+            self.val_dataset = self.dataset(self.features[train_idx:val_idx])
+            self.test_dataset = self.dataset(self.features[val_idx:])
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset,

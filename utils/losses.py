@@ -31,7 +31,7 @@ def rmwe_loss(g, t, reduction='mean', eps=1e-8):
         raise ValueError('reduction must be either "mean" or "sum"')
 
 
-def mape_loss(g, t, reduction='mean', eps=1e-10):
+def mape_loss(g, t, reduction='mean', eps=1e-8):
     """
     MAPE loss
     :param g: array-like, guess
@@ -41,7 +41,7 @@ def mape_loss(g, t, reduction='mean', eps=1e-10):
     :return: MAPE of guess from target
     """
     if reduction == 'mean':
-        return torch.mean(torch.abs((g - t) / (t+eps))) * 100
+        return torch.mean(torch.abs((g - t) / (t + eps**2))) * 100
     else:
         raise NotImplementedError('Only mean reduction is supported.')
 
@@ -66,4 +66,4 @@ def calc_mape(g: torch.Tensor, t: torch.Tensor, eps=1e-8, axis=None) -> torch.Te
     :param axis: int, dimension along which to calculate MAPE, None for entire mean
     :return: torch.Tensor, mape of guess from target
     """
-    return torch.mean(torch.abs((t - g) / (t + eps)), dim=axis) * 100
+    return torch.mean(torch.abs((t - g) / (t + eps**2)), dim=axis) * 100

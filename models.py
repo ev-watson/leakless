@@ -79,59 +79,6 @@ class ConvBlock(nn.Module):
         return self.block(x)
 
 
-class DenseHead(nn.Module):
-    def __init__(self, channels: int, length: int, dense_dim: int, drop_rate: float, activation: nn.Module = nn.ReLU):
-        """
-        bottleneck dense head for global mixing
-        Args:
-            channels (int): feature channels at bottleneck.
-            length (int): length of feature sequence.
-            dense_dim (int): hidden units.
-            drop_rate (float): dropout probability.
-            activation (Callable[[], nn.Module], optional): activation module class. default nn.ReLU.
-        """
-        super().__init__()
-        self.channels = channels
-        self.length = length
-        self.fc = nn.Linear(channels * length, dense_dim)
-        self.dropout = nn.Dropout(p=drop_rate)
-        self.output = nn.Linear(dense_dim, channels * length)
-        self.activation = activation()
-
-    def forward(self, x):
-        B = x.shape[0]
-        x = x.flatten(1)
-        x = self.fc(x)
-        x = self.activation(x)
-        x = self.dropout(x)
-        x = self.output(x)
-        return x.view(B, self.channels, self.length)
-
-
-class CrossScaleGate(nn.Module):
-    def __init__(self, channels: int, thresh_idx: int):
-        """
-        cross-scale gating between low and high bands
-        Args:
-            channels (int): number of channels.
-            thresh_idx (int): split index along length.
-        """
-        super().__init__()
-        self.thresh = thresh_idx
-        self.high_to_low = nn.Linear(channels, channels)
-        self.low_to_high = nn.Linear(channels, channels)
-
-    def forward(self, x):
-        low, high = x[:, :, :self.thresh], x[:, :, self.thresh:]
-        mean_low = low.mean(dim=2)      # [B, C]
-        mean_high = high.mean(dim=2)    # [B, C]
-        gate_low = torch.sigmoid(self.high_to_low(mean_high)).unsqueeze(-1)     # use high-ell summary in low gate
-        gate_high = torch.sigmoid(self.low_to_high(mean_low)).unsqueeze(-1)     # use low-ell summary in high gate
-        low = low * gate_low        # [B, C, N_low]
-        high = high * gate_high     # [B, C, N_high]
-        return torch.cat([low, high], dim=2)
-
-
 class SpectralUNet(LightningModule):
     def __init__(self, **kwargs):
         """
@@ -153,10 +100,8 @@ class SpectralUNet(LightningModule):
         base_ch = kwargs.get("base_channels", config.BASE_CHANNELS)
         nlevels = kwargs.get("num_levels", config.NUM_LEVELS)
         factor = kwargs.get("sample_factor", config.SAMPLE_FACTOR)
-        kernel_list = kwargs.get("kernel_list", [config.KERNEL_SIZE] * nlevels)
-        dense_dim = kwargs.get("dense_dim", config.DENSE_DIM)
+        kernel_list = kwargs.get("kernel_list", config.KERNEL_LIST)
         drop_rate = kwargs.get("drop_rate", config.DROP_RATE)
-        gate_resolution = kwargs.get("gate_resolution", config.GATE_RESOLUTION)
         activation = kwargs.get("activation", nn.ReLU)
         bias = kwargs.get("bias", config.BIAS)
 
@@ -178,7 +123,6 @@ class SpectralUNet(LightningModule):
 
         # bottleneck at coarsest resolution
         bot_ch = base_ch * (2 ** nlevels)
-        bot_nsides = nsides // (factor ** nlevels)
         self.bottleneck = ConvBlock(
             in_ch=channels[-1],
             out_ch=bot_ch,
@@ -186,13 +130,7 @@ class SpectralUNet(LightningModule):
             activation=activation,
             bias=bias,
         )
-        self.dense_head = DenseHead(
-            channels=bot_ch,
-            length=alm_len_from_nsides(bot_nsides),
-            dense_dim=dense_dim,
-            drop_rate=drop_rate,
-            activation=activation,
-        )
+        self.dropout = nn.Dropout(p=drop_rate)
 
         # decoder: upsample, concat skip, convblock
         self.decoders = nn.ModuleList()
@@ -207,13 +145,12 @@ class SpectralUNet(LightningModule):
                     activation=activation,
                     bias=bias
                 ),
+                # testing removing dropout layers
+                # 'drop': nn.Dropout(p=drop_rate) if i == nlevels - 1 else nn.Identity(),
             }))
 
         # final 1x1 conv to restore input channels
         self.final = nn.Conv1d(base_ch, in_ch, kernel_size=1, bias=bias)
-
-        # cross-scale gate to capture global interactions
-        self.gate = CrossScaleGate(channels=in_ch, thresh_idx=alm_len_from_nsides(gate_resolution))
 
         self.save_hyperparameters(kwargs)
 
@@ -227,7 +164,7 @@ class SpectralUNet(LightningModule):
 
         # bottleneck
         x = self.bottleneck(x)  # [B, BC*2**L, N/D**L]
-        # x = self.dense_head(x)  # [B, BC*2**L, N/D**L]
+        x = self.dropout(x)
 
         # decoding
         for idx, dec in enumerate(self.decoders):
@@ -235,9 +172,9 @@ class SpectralUNet(LightningModule):
             x = dec["upgrade"](x)  # [B, BC*2**(L-i), N/D**(L-i-1)]
             x = torch.cat([x, skip], dim=1)  # [B, BC*2**(L-i) + BC*2**(L-i-1), N/D**(L-i-1)]
             x = dec["conv"](x)  # [B, BC*2**(L-i-1), N/D**(L-i-1)]
+            # x = dec['drop'](x)
 
         x = self.final(x)
-        x = self.gate(x)
         return x
 
 
@@ -303,107 +240,3 @@ class Leakless(SpectralUNet, PredictorMixin):
         elif self.scheduler == torch.optim.lr_scheduler.OneCycleLR or self.scheduler == torch.optim.lr_scheduler.CyclicLR:
             self.s_config = {'scheduler': scheduler, 'interval': 'step'}
         return {"optimizer": optimizer, "lr_scheduler": self.s_config}
-
-
-"""
-OUTDATED
-"""
-
-
-class spectralNBB(nn.Module):
-    def __init__(self, **kwargs):
-        """
-        complex spectral Network Building Block (NBB) as described in Krachmalnicoff & Tomasi (A&A, 2019, 628, A129)
-
-        input: tensor shaped [b, c, n] where b is batch size, c is # of channels,
-        and n is (lmax+1)*(lmax+2)/2) where lmax must be 3*nsides-1
-            channels: [E_alm_re, E_alm,im, B_alm_re, B_alm_im]
-
-        output: tensor shaped [b, c, new_n] where new_n is n but with nside/degrade_factor
-        so new_n = (3*nside)*(3*nside + d)/2d)
-            channels: [E_alm_re, E_alm,im, B_alm_re, B_alm_im]
-
-        Args:
-            nsides (int, optional): healpix NSIDE. Default config.NSIDES.
-            in_channels (int, optional): Number of input channels. Default config.IN_CHANNELS.
-            out_channels (int, optional): Number of output channels. Default config.OUT_CHANNELS.
-            kernel_size (int, optional): 1D convolution kernel size. Default config.KERNEL_SIZE.
-            degradation_factor (int, optional): Downsampling upgrade_factor. Default config.SAMPLE_FACTOR.
-            activation (Callable[[Tensor], Tensor], optional): Activation function. Default F.relu.
-            bias (bool, optional): Whether to include bias in conv. Default config.BIAS.
-        """
-        super().__init__()
-        self.nsides = kwargs.get("nsides", config.NSIDES)
-        self.in_channels = kwargs.get("in_channels", config.IN_CHANNELS)
-        self.out_channels = kwargs.get("out_channels", config.OUT_CHANNELS)
-        self.kernel_size = kwargs.get("kernel_size", config.KERNEL_SIZE)
-        self.degradation_factor = kwargs.get("degradation_factor", config.SAMPLE_FACTOR)
-        self.activation = kwargs.get("activation", F.relu)
-        self.bias = kwargs.get("bias", config.BIAS)
-
-        # pad by k//2 on each side to preserve size
-        self.conv = nn.Conv1d(self.in_channels, self.out_channels, kernel_size=self.kernel_size,
-                              padding=self.kernel_size // 2, bias=self.bias)
-
-        # degradation layer
-        self.degrade = Degrade(self.nsides, self.degradation_factor)
-
-    def forward(self, x):
-        x = self.conv(x)  # [b, c, n]
-        x = self.activation(x)  # [b, c, n]
-        x = self.degrade(x)  # [b, c, new_n]
-        return x
-
-
-class shallowCNN(LightningModule):
-    def __init__(self, **kwargs):
-        """
-        Shallow spectral-space CNN model chaining multiple NBB blocks and a fully-connected head
-        as described in Krachmalnicoff & Tomasi (A&A, 2019, 628, A129)
-        Args:
-            nsides (int, optional): healpix NSIDE. Default config.NSIDES.
-            in_channels (int, optional): Number of input channels. Default config.IN_CHANNELS.
-            out_channels (int, optional): Number of output channels. Default config.OUT_CHANNELS.
-            degradation_factor (int, optional): Downsampling upgrade_factor per NBB. Default config.SAMPLE_FACTOR.
-            activation (Callable[[Tensor], Tensor], optional): Activation function. Default F.relu.
-            num_nbb (int, optional): Number of NBB blocks. Default config.NUM_NBB.
-            fc_neurons (int, optional): Neurons in fully-connected layer. Default config.DENSE_DIM.
-            drop_rate (float, optional): Dropout probability. Default config.DROP_RATE.
-        """
-        super().__init__()
-        self.nsides = kwargs.get("nsides", config.NSIDES)
-        self.in_channels = kwargs.get("in_channels", config.IN_CHANNELS)
-        self.out_channels = kwargs.get("out_channels", config.OUT_CHANNELS)
-        self.degradation_factor = kwargs.get("degradation_factor", config.SAMPLE_FACTOR)
-        self.activation = kwargs.get("activation", F.relu)
-        self.num_nbb = kwargs.get("nlevels", config.NUM_NBB)
-        self.fc_neurons = kwargs.get("dense_dim", config.DENSE_DIM)
-        self.drop_rate = kwargs.get("drop_rate", config.DROP_RATE)
-
-        # get before and after len for NBB block for defining exit layers
-        self.init_len = alm_len_from_nsides(self.nsides)
-        self.final_len = alm_len_from_nsides(self.nsides // self.degradation_factor ** self.num_nbb)
-
-        # nsides -> nsides/d -> nsides/d**2 -> ... -> nsides/d**nlevels
-        self.nbbBlock = nn.ModuleList([
-            spectralNBB(nsides=self.nsides // (self.degradation_factor ** i),
-                        in_channels=self.in_channels if i == 0 else self.out_channels,
-                        **kwargs) for i in range(self.num_nbb)
-        ])
-        self.fc = nn.Linear(self.out_channels * self.final_len, self.fc_neurons)
-        self.dropout = nn.Dropout(p=self.drop_rate)
-        self.output_layer = nn.Linear(self.fc_neurons, self.in_channels * self.init_len)
-
-        self.save_hyperparameters()
-
-    def forward(self, x):
-        B = x.shape[0]  # [b, c_in, n]
-        for nbb in self.nbbBlock:
-            x = nbb(x)  # [b, c_out, new_n]
-        x = x.flatten(1)  # [b, c_out*final_n]
-        x = self.fc(x)  # [b, dense_dim]
-        x = self.activation(x)
-        x = self.dropout(x)
-        x = self.output_layer(x)  # [b, 4*init_len]
-        x = x.view(B, self.in_channels, self.init_len)
-        return x
