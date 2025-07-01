@@ -26,6 +26,7 @@ from .losses import (
     rmwe_loss,
     zero_one_approximation_loss,
     calc_mae,
+    calc_mse,
     calc_mape
 )
 

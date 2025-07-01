@@ -3,17 +3,17 @@ import torch
 
 import config
 from utils.logging_utils import print_block
-from utils.losses import calc_mae, calc_mape
+from utils.losses import calc_mse, calc_mape
 
 
 def print_analysis(g, t, ntrials, mape, suppress, err, verbose, axis=None):
     """
     Helper function for random tests
     """
-    mae = calc_mae(g, t, axis=axis)
+    metric = calc_mse(g, t, axis=axis)
     if not suppress:
         print_block(f"RANDOM INPUT TESTING TRIALS: {ntrials}", err=err)
-        print_block(f"MAE: {mae:.6g}", err=err)
+        print_block(f"MSE: {metric:.6g}", err=err)
         if verbose:
             print_block("PREDICTIONS:", err=err)
             print(g)
@@ -24,9 +24,9 @@ def print_analysis(g, t, ntrials, mape, suppress, err, verbose, axis=None):
         mape_val = calc_mape(g, t, axis=axis)
         if not suppress:
             print_block(f"MAPE: {mape_val:.6g}%", err=err)
-        return mae, mape_val
+        return metric, mape_val
     else:
-        return mae
+        return metric
 
 
 def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, suppress=False, err=False, verbose=False, mean_axis=None):
@@ -75,8 +75,8 @@ def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, supp
     if not suppress:
         print_block("TESTING COMPLETE, BEGINNING ANALYSIS", err=err)
 
-    mae = print_analysis(pred_vals, target_data, ntrials, False, suppress, err, verbose, axis=mean_axis)
+    metric = print_analysis(pred_vals, target_data, ntrials, False, suppress, err, verbose, axis=mean_axis)
     if hopt:
-        return mae
+        return metric
     else:
         return input_data.cpu().numpy(), pred_vals.cpu().numpy(), target_data.cpu().numpy()

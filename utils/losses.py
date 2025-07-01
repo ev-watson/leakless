@@ -57,6 +57,17 @@ def calc_mae(g: torch.Tensor, t: torch.Tensor, axis=None) -> torch.Tensor:
     return torch.mean(torch.abs(t - g), dim=axis)
 
 
+def calc_mse(g: torch.Tensor, t: torch.Tensor, axis=None) -> torch.Tensor:
+    """
+    mse
+    :param g: torch.Tensor, guess
+    :param t: torch.Tensor, target
+    :param axis: int, dimension along which to calculate MSE, None for entire mean
+    :return: torch.Tensor, mse of guess from target
+    """
+    return torch.mean((t - g) ** 2, dim=axis)
+
+
 def calc_mape(g: torch.Tensor, t: torch.Tensor, eps=1e-8, axis=None) -> torch.Tensor:
     """
     mape

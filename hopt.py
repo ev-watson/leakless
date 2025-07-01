@@ -202,8 +202,8 @@ def objective(trial):
     # return trainer.callback_metrics['test_loss'].item()
 
     rtrials = 1000
-    mae = leak_test(model, ntrials=rtrials, hopt=True, err=True, mean_axis=None)
-    return mae.item()
+    metric = leak_test(model, ntrials=rtrials, hopt=True, err=True, mean_axis=None)
+    return metric.item()
 
 
 # multi-objective sampler
