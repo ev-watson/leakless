@@ -12,7 +12,7 @@ torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_
 class Degrade(nn.Module):
     def __init__(self, nsides, degradation_factor):
         """
-        degradation module to downsample nsides resolution by degradation_factor
+        degradation module to downsample nside resolution by degradation_factor
         Args:
             nsides (int): Original healpix NSIDE.
             degradation_factor (int): Downsampling factor.
@@ -28,7 +28,7 @@ class Degrade(nn.Module):
 class Upgrade(nn.Module):
     def __init__(self, nsides, upgrade_factor):
         """
-        upgrade module to upsample (zero-pad) nsides resolution by upgrade_factor
+        upgrade module to upsample (zero-pad) nside resolution by upgrade_factor
         Args:
             nsides (int): Original healpix NSIDE.
             upgrade_factor (int): Upsampling factor.
@@ -85,7 +85,7 @@ class SpectralUNet(LightningModule):
         U-Net style branch for CMB alm arrays configurable version inspired by Guo-Jian Wang et al 2022 ApJS 260 13
 
         Args:
-            nsides (int, optional): healpix NSIDE. Default config.NSIDES.
+            nsides (int, optional): healpix NSIDE. Default config.NSIDE.
             in_channels (int, optional): Number of input channels. Default config.IN_CHANNELS.
             base_channels (int, optional): Channels in first encoding level. Default config.BASE_CHANNELS.
             num_levels (int, optional): Depth of the encoder/decoder (number of levels). Default config.NUM_LEVELS.
@@ -95,7 +95,7 @@ class SpectralUNet(LightningModule):
             degradation_factor (int, optional): Downsampling upgrade_factor applied to NSIDE at each level. Default config.SAMPLE_FACTOR.
         """
         super().__init__()
-        nsides = kwargs.get("nsides", config.NSIDES)
+        nsides = kwargs.get("nside", config.NSIDE)
         in_ch = kwargs.get("in_channels", config.IN_CHANNELS)
         base_ch = kwargs.get("base_channels", config.BASE_CHANNELS)
         nlevels = kwargs.get("num_levels", config.NUM_LEVELS)

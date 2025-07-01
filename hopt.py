@@ -130,7 +130,7 @@ def objective(trial):
     params['lr'] = trial.suggest_float('lr', 1e-7, 1e0)
 
     # ARCHITECTURE
-    params['base_channels'] = trial.suggest_categorical('base_channels', [config.NSIDES//2, config.NSIDES, config.NSIDES*2])
+    params['base_channels'] = trial.suggest_categorical('base_channels', [config.NSIDE // 2, config.NSIDE, config.NSIDE * 2])
     params["conv_block_levels"] = trial.suggest_int('conv_block_levels', 1, 2)
     params['num_levels'] = trial.suggest_int('num_levels', 2, 5)
     params['drop_rate'] = trial.suggest_float('drop_rate', 0.01, 0.5)

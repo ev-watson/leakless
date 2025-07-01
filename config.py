@@ -4,9 +4,9 @@ from sys import platform
 SEED = 42
 MAC = platform == 'darwin'  # True if running on mac, False if anything else
 
-# CHANGING NSIDES MEANS RERUNNING DATA_INIT
-NSIDES = 64    # Project computation scales as O(NSIDES**2) right now
-# CHANGING NSIDES MEANS RERUNNING DATA_INIT
+# CHANGING NSIDE MEANS RERUNNING DATA_INIT
+NSIDE = 64    # Project computation scales as O(NSIDE**2) right now
+# CHANGING NSIDE MEANS RERUNNING DATA_INIT
 
 # DATA GENERATION
 ROLLING = not MAC and True      # does not work with scaling or mac
@@ -23,7 +23,7 @@ PIN_MEMORY = True
 
 # ENCODING/DECODING
 IN_CHANNELS = 4
-BASE_CHANNELS = 2*NSIDES
+BASE_CHANNELS = 2 * NSIDE
 KERNEL_LIST = [7, 5, 3, 1]
 SAMPLE_FACTOR = 2
 BIAS = True
@@ -53,6 +53,7 @@ if MAC:
     NUM_WORKERS = 0
     PREFETCH_FACTOR = None
     PIN_MEMORY = False
+    STACK_SIZE = 5000
     NUM_SAMPLES = 3000
 
 

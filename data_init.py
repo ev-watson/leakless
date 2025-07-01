@@ -53,7 +53,7 @@ def generate_stack(seed, cls, nsides, mask):
 
 
 def main():
-    nsides = config.NSIDES
+    nsides = config.NSIDE
     n_samples = config.STACK_SIZE
 
     print_block(f"NSIDES: {nsides} // {n_samples} samples")

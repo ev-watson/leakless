@@ -40,8 +40,9 @@ class indexedDataset(Dataset):
         return len(self.indices)
 
     def __getitem__(self, idx):
-        x = self._data[self.indices[idx], self.input_slice, :]
-        y = self._data[self.indices[idx], self.target_slice, :]
+        raw = torch.from_numpy(self._data[self.indices[idx]].copy())
+        x = raw[self.input_slice]
+        y = raw[self.target_slice]
         return x, y
 
 

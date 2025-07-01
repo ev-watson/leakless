@@ -18,7 +18,7 @@ torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_
 
 params = {
     'lr': 1e-3,
-    'base_channels': 2*config.NSIDES,
+    'base_channels': 2*config.NSIDE,
     'sample_factor': config.SAMPLE_FACTOR,
     'num_levels': 4,
     'kernel_list': config.KERNEL_LIST,

@@ -5,8 +5,8 @@ import numpy as np
 
 def alm_len_from_nsides(nsides):
     """
-    helper function to find len of an alm_array from nsides
-    assuming lmax = 3*nsides - 1
+    helper function to find len of an alm_array from nside
+    assuming lmax = 3*nside - 1
     :param nsides: int, resolution of map
     :return: int, len of alm array
     """
@@ -16,7 +16,7 @@ def alm_len_from_nsides(nsides):
 
 def nsides_from_alm_len(alm_len):
     """
-    helper function to find nsides from alm array len
+    helper function to find nside from alm array len
     :param alm_len: int, len of alm array
     :return: int, resolution of map
     """
