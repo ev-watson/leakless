@@ -3,9 +3,40 @@ from typing import Optional, Union
 import joblib
 import numpy as np
 import torch
+import torch.nn as nn
 from lightning.pytorch.callbacks import Callback
 
 import config
+
+
+class LambdaLayer(nn.Module):
+    """Wrap any Callable[[Tensor],Tensor] so it behaves like an nn.Module."""
+    def __init__(self, fn):
+        super().__init__()
+        self.fn = fn
+
+    def forward(self, x):
+        return self.fn(x)
+
+
+def make_module(act):
+    """
+    Given one of:
+      • an nn.Module subclass (e.g. nn.ReLU),
+      • an nn.Module instance (e.g. nn.ReLU()),
+      • any Callable Tensor→Tensor (e.g. F.relu or a lambda),
+    return an nn.Module instance you can safely put into nn.Sequential.
+    """
+    # already an instance?
+    if isinstance(act, nn.Module):
+        return act
+    # a Module *class*?
+    if isinstance(act, type) and issubclass(act, nn.Module):
+        return act()
+    # any other callable → wrap in LambdaLayer
+    if callable(act):
+        return LambdaLayer(act)
+    raise ValueError(f"Cannot make a module out of {act!r}")
 
 
 class Scaler:

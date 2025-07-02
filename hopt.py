@@ -115,7 +115,7 @@ def objective(trial):
     seed_everything(seed)
     clear_local_ckpt_files()
     config.ROLLING = False
-    config.SCALE = True
+    config.SCALE = False
 
     """
     Build the hyperparameter dictionary and study parameter list.
@@ -143,6 +143,7 @@ def objective(trial):
     # ALGORITHMS
     # ---activation---
     params['activation_name'] = trial.suggest_categorical('activation', list(activation_functions.keys()))
+    params['activation'] = activation_functions[params['activation_name']]
 
     # ---loss---
     params['loss_name'] = trial.suggest_categorical('loss_name', list(loss_functions.keys()))
@@ -162,7 +163,6 @@ def objective(trial):
     }
 
     config.update_hparams(params)
-    config.N_CONV_LAYERS_IN_ONE_BLOCK = params['conv_block_levels']
 
     data_module = leaklessDataModule()
 

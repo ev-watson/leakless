@@ -4,7 +4,7 @@ from lightning.pytorch import LightningModule
 from torch import nn
 
 import config
-from utils import alm_len_from_nsides, print_block, PredictorMixin
+from utils import alm_len_from_nsides, print_block, PredictorMixin, make_module
 
 torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_dtype(torch.float32)
 
@@ -46,13 +46,14 @@ class Upgrade(nn.Module):
 
 
 class ConvBlock(nn.Module):
-    def __init__(self, in_ch, out_ch, kernel_size, activation=nn.ReLU, dilation=None, bias=config.BIAS):
+    def __init__(self, in_ch, out_ch, kernel_size, conv_block_levels=config.N_CONV_LAYERS_IN_ONE_BLOCK, activation=nn.ReLU, dilation=None, bias=config.BIAS):
         """
         Two-layer 1D convolutional block with activation. Uses dilation in kernel.
         Args:
             in_ch (int): Number of input channels.
             out_ch (int): Number of output channels.
             kernel_size (int, optional): Kernel size. Must be odd.
+            conv_block_levels (int, optional): Number of conv layers in one block.
             activation (Callable[[], nn.Module], optional): Activation module class. Default nn.ReLU.
             dilation (int, optional): Dilation factor. Defaults to one less than the integer half of kernel size.
             bias (bool, optional): Whether to use bias or not.
@@ -64,13 +65,13 @@ class ConvBlock(nn.Module):
             dilation = (kernel_size // 2) - 1 if kernel_size > 3 else 1
         padding = (dilation*(kernel_size - 1)) // 2
 
-        N_CONV_LAYERS_IN_ONE_BLOCK = config.N_CONV_LAYERS_IN_ONE_BLOCK
+        N_CONV_LAYERS_IN_ONE_BLOCK = conv_block_levels
 
         # dilation and padding same value to preserve shape
         self.chain = []
         for _ in range(N_CONV_LAYERS_IN_ONE_BLOCK):
             self.chain.append(nn.Conv1d(in_ch, out_ch, kernel_size, padding=padding, dilation=dilation, bias=bias))
-            self.chain.append(activation())
+            self.chain.append(make_module(activation))
             in_ch = out_ch
 
         self.block = nn.Sequential(*self.chain)
@@ -101,6 +102,7 @@ class SpectralUNet(LightningModule):
         nlevels = kwargs.get("num_levels", config.NUM_LEVELS)
         factor = kwargs.get("sample_factor", config.SAMPLE_FACTOR)
         kernel_list = kwargs.get("kernel_list", config.KERNEL_LIST)
+        conv_block_levels = kwargs.get("conv_block_levels", config.N_CONV_LAYERS_IN_ONE_BLOCK)
         drop_rate = kwargs.get("drop_rate", config.DROP_RATE)
         activation = kwargs.get("activation", nn.ReLU)
         bias = kwargs.get("bias", config.BIAS)
@@ -115,6 +117,7 @@ class SpectralUNet(LightningModule):
                     in_ch=channels[i],
                     out_ch=channels[i+1],
                     kernel_size=kernel_list[i],
+                    conv_block_levels=conv_block_levels,
                     activation=activation,
                     bias=bias,
                 ),
@@ -127,6 +130,7 @@ class SpectralUNet(LightningModule):
             in_ch=channels[-1],
             out_ch=bot_ch,
             kernel_size=kernel_list[-1],
+            conv_block_levels=conv_block_levels,
             activation=activation,
             bias=bias,
         )
@@ -142,6 +146,7 @@ class SpectralUNet(LightningModule):
                     in_ch=(bot_ch if i == nlevels - 1 else channels[i + 2]) + channels[i + 1],
                     out_ch=channels[i + 1],
                     kernel_size=kernel_list[i],
+                    conv_block_levels=conv_block_levels,
                     activation=activation,
                     bias=bias
                 ),

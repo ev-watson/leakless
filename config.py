@@ -10,13 +10,13 @@ NSIDE = 64    # Project computation scales as O(NSIDE**2) right now
 
 # DATA GENERATION
 ROLLING = not MAC and True      # does not work with scaling or mac
-SCALE = not ROLLING and True    # only turns on if True and ROLLING is not on
+SCALE = not ROLLING and False    # only turns on if True and ROLLING is not on
 STACK_SIZE = 50000      # total dataset available to pull from
-NUM_SAMPLES = 4500     # initial number of pulls to use during training/val/testing
-REPLACE_FRAC = 0.10     # percent of existing training data to replace with newly generated data (0.1 means 10% replaced)
+NUM_SAMPLES = 15000     # initial number of pulls to use during training/val/testing
+REPLACE_FRAC = 0.15     # percent of existing training data to replace with newly generated data (0.1 means 10% replaced)
 
 # DATA HANDLING
-BATCH_SIZE = 4
+BATCH_SIZE = 16
 NUM_WORKERS = 16
 PREFETCH_FACTOR = 4
 PIN_MEMORY = True
@@ -35,7 +35,7 @@ DROP_RATE = 0.35
 
 # TRAINING
 LEARNING_RATE = 1e-3
-MAX_EPOCHS = 50
+MAX_EPOCHS = 100
 ENABLE_EARLY_STOPPING = True
 PATIENCE = 7
 GRADIENT_CLIP_VAL = 0.5
@@ -50,6 +50,7 @@ ON_STEP = False
 
 # MAC SETTINGS
 if MAC:
+    BATCH_SIZE = 4
     NUM_WORKERS = 0
     PREFETCH_FACTOR = None
     PIN_MEMORY = False

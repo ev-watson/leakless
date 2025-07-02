@@ -37,6 +37,8 @@ from .optuna_helpers import (
 )
 
 from .torch_utils import (
+    LambdaLayer,
+    make_module,
     Scaler,
     PredictorMixin,
     RollingBufferCallback,

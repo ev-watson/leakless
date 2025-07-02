@@ -17,14 +17,15 @@ seed_everything(seed)
 torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_dtype(torch.float32)
 
 params = {
-    'lr': 1e-3,
-    'base_channels': 2*config.NSIDE,
+    'lr': 3e-3,
+    'base_channels': 4*config.NSIDE,
     'sample_factor': config.SAMPLE_FACTOR,
     'num_levels': 4,
     'kernel_list': config.KERNEL_LIST,
+    'conv_block_layers': 2,
     'activation': nn.ReLU,
     'drop_rate': 0.35,
-    'loss': F.mse_loss,
+    'loss': F.l1_loss,
     # 'loss_kwargs': {
     #     'beta': 1.575184625409794,
     # },
@@ -66,7 +67,7 @@ if log_steps == 0:
 
 
 trainer = Trainer(
-    max_epochs=1000,
+    max_epochs=100,
     callbacks=[
         ModelCheckpoint(
             dirpath='tlogs/checkpoints',
