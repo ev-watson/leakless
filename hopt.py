@@ -137,8 +137,15 @@ def objective(trial):
     # params['dropout_frequency'] = trial.suggest_int('dropout_frequency', 1, params['num_layers'])
     # params['sample_factor'] = trial.suggest_categorical('sample_factor', [2, 4])
 
+    # --kernel list generators--
     # make kernel list count down in odd numbers to reach 1 based on num_levels
-    params['kernel_list'] = list(reversed([1 + 2*i for i in range(params['num_levels'])]))
+    # params['kernel_list'] = list(reversed([1 + 2*i for i in range(params['num_levels'])]))
+
+    # make kernel list for counting down 1 below powers of 2 (offset by nlevels) based on nlevels
+    # params['kernel_size'] = list(reversed([2**(i+params['num_levels']) - 1 for i in range(params['num_levels'])]))
+
+    # make kernel list for counting down 1 below powers of 2 based on nside
+    params['kernel_size'] = [int(config.NSIDE/2**(i+1)) - 1 for i in range(params['num_levels'])]
 
     # ALGORITHMS
     # ---activation---
@@ -178,7 +185,7 @@ def objective(trial):
     print_err(f"Starting trial with parameters: {params}")
 
     trainer = Trainer(
-        max_epochs=config.MAX_EPOCHS,
+        max_epochs=50,
         gradient_clip_val=params.get('gradient_clip_val', config.GRADIENT_CLIP_VAL),
         callbacks=[
             EarlyStopping(monitor='val_loss', patience=config.PATIENCE, mode='min'),
@@ -201,7 +208,7 @@ def objective(trial):
 
     # return trainer.callback_metrics['test_loss'].item()
 
-    rtrials = 1000
+    rtrials = 5000
     metric = leak_test(model, ntrials=rtrials, hopt=True, err=True, mean_axis=None)
     return metric.item()
 

@@ -4,7 +4,8 @@ import config
 
 from .analysis import (
     print_analysis,
-    leak_test
+    leak_test,
+    model_analysis
 )
 
 from .harmonic_helpers import (

@@ -7,12 +7,13 @@ MAC = platform == 'darwin'  # True if running on mac, False if anything else
 # CHANGING NSIDE MEANS RERUNNING DATA_INIT
 NSIDE = 64    # Project computation scales as O(NSIDE**2) right now
 # CHANGING NSIDE MEANS RERUNNING DATA_INIT
+LMAX = 3 * 16 - 1
 
 # DATA GENERATION
 ROLLING = not MAC and True      # does not work with scaling or mac
 SCALE = not ROLLING and False    # only turns on if True and ROLLING is not on
 STACK_SIZE = 50000      # total dataset available to pull from
-NUM_SAMPLES = 15000     # initial number of pulls to use during training/val/testing
+NUM_SAMPLES = 12000     # initial number of pulls to use during training/val/testing
 REPLACE_FRAC = 0.15     # percent of existing training data to replace with newly generated data (0.1 means 10% replaced)
 
 # DATA HANDLING
@@ -24,7 +25,7 @@ PIN_MEMORY = True
 # ENCODING/DECODING
 IN_CHANNELS = 4
 BASE_CHANNELS = 2 * NSIDE
-KERNEL_LIST = [7, 5, 3, 1]
+KERNEL_LIST = [63, 31, 15, 7]
 SAMPLE_FACTOR = 2
 BIAS = True
 

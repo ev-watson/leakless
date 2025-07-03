@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import torch
 
@@ -80,3 +81,111 @@ def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, supp
         return metric
     else:
         return input_data.cpu().numpy(), pred_vals.cpu().numpy(), target_data.cpu().numpy()
+
+
+def model_analysis(ckpt_path, ntrials, nside, lmax, mask, outstream=sys.stdout):
+    """
+    Takes in a model checkpoint, runs map and final power spectrum analysis, returns tensors for plotting
+    Args:
+        ckpt_path: str, path to model checkpoint
+        ntrials: int, number of trials
+        nside: int, HEALPix nside
+        lmax: int, HEALPix lmax
+        mask: obj, mask to apply to maps
+        outstream: output stream
+
+    Returns: dict with all arrays necessary for plotting
+
+    """
+    model = Leakless.load_from_checkpoint(ckpt_path)
+
+    # writes a text based illustration of the model to outstream
+    with open(outstream, 'w') as f:
+        print(model, file=f)
+
+    # grabs necessary tensors
+    input_vector, output_vector, target_vector = leak_test(model, ntrials=ntrials)
+
+    # recombines the imaginary and real parts to one number
+    alm_len = alm_len_from_nsides(nside)
+    alm_e_in = np.zeros((ntrials, alm_len), dtype=np.complex128)
+    alm_b_in = np.zeros((ntrials, alm_len), dtype=np.complex128)
+    alm_e_out = np.zeros((ntrials, alm_len), dtype=np.complex128)
+    alm_b_out = np.zeros((ntrials, alm_len), dtype=np.complex128)
+    alm_e_targ = np.zeros((ntrials, alm_len), dtype=np.complex128)
+    alm_b_targ = np.zeros((ntrials, alm_len), dtype=np.complex128)
+    for i in range(ntrials):
+        alm_e_in[i], alm_b_in[i] = recombine(input_vector[i])
+        alm_e_out[i], alm_b_out[i] = recombine(output_vector[i])
+        alm_e_targ[i], alm_b_targ[i] = recombine(target_vector[i])
+
+    # make maps from alm arrays and calc cross coeff (rho)
+    e_in = np.zeros((ntrials, lmax + 1), dtype=np.float64)
+    b_in = np.zeros((ntrials, lmax + 1), dtype=np.float64)
+    e_out = np.zeros((ntrials, lmax + 1), dtype=np.float64)
+    b_out = np.zeros((ntrials, lmax + 1), dtype=np.float64)
+    e_targ = np.zeros((ntrials, lmax + 1), dtype=np.float64)
+    b_targ = np.zeros((ntrials, lmax + 1), dtype=np.float64)
+    e_cross = np.zeros((ntrials, lmax + 1), dtype=np.float64)
+    b_cross = np.zeros((ntrials, lmax + 1), dtype=np.float64)
+    b_cross_coeff = np.zeros((ntrials, lmax + 1), dtype=np.float64)
+    for i in tqdm(range(ntrials)):
+        e_in_masked_map = hp.alm2map(alm_e_in[i], nside=nside, lmax=lmax) * mask
+        b_in_masked_map = hp.alm2map(alm_b_in[i], nside=nside, lmax=lmax) * mask
+        e_out_masked_map = hp.alm2map(alm_e_out[i], nside=nside, lmax=lmax) * mask
+        b_out_masked_map = hp.alm2map(alm_b_out[i], nside=nside, lmax=lmax) * mask
+        e_targ_masked_map = hp.alm2map(alm_e_targ[i], nside=nside, lmax=lmax) * mask
+        b_targ_masked_map = hp.alm2map(alm_b_targ[i], nside=nside, lmax=lmax) * mask
+        e_in[i] = hp.anafast(e_in_masked_map, lmax=lmax)
+        b_in[i] = hp.anafast(b_in_masked_map, lmax=lmax)
+        e_out[i] = hp.anafast(e_out_masked_map, lmax=lmax)
+        b_out[i] = hp.anafast(b_out_masked_map, lmax=lmax)
+        e_targ[i] = hp.anafast(e_targ_masked_map, lmax=lmax)
+        b_targ[i] = hp.anafast(b_targ_masked_map, lmax=lmax)
+        e_cross[i] = hp.anafast(e_in_masked_map, e_out_masked_map, lmax=lmax)
+        b_cross[i] = hp.anafast(b_in_masked_map, b_out_masked_map, lmax=lmax)
+
+        b_cross_coeff[i] = b_cross[i] / np.sqrt(b_in[i] * b_out[i])
+
+    # take averages of all trials
+    cl_e_in = np.mean(e_in, axis=0)
+    cl_b_in = np.mean(b_in, axis=0)
+    cl_e_out = np.mean(e_out, axis=0)
+    cl_b_out = np.mean(b_out, axis=0)
+    cl_e_targ = np.mean(e_targ, axis=0)
+    cl_b_targ = np.mean(b_targ, axis=0)
+    cl_e_cross = np.mean(e_cross, axis=0)
+    cl_b_cross = np.mean(b_cross, axis=0)
+    cl_b_cross_coeff = np.mean(b_cross_coeff, axis=0)
+    cl_e_leak_std = np.std(e_in, axis=0)
+    cl_b_leak_std = np.std(b_in, axis=0)
+    cl_e_pred_std = np.std(e_out, axis=0)
+    cl_b_pred_std = np.std(b_out, axis=0)
+    cl_e_true_std = np.std(e_targ, axis=0)
+    cl_b_true_std = np.std(b_targ, axis=0)
+    cl_e_cross_std = np.std(e_cross, axis=0)
+    cl_b_cross_std = np.std(b_cross, axis=0)
+    cl_b_cross_coeff_std = np.std(b_cross_coeff, axis=0)
+
+    output = {
+        'e_in': cl_e_in,
+        'b_in': cl_b_in,
+        'e_out': cl_e_out,
+        'b_out': cl_b_out,
+        'e_targ': cl_e_targ,
+        'b_targ': cl_b_targ,
+        'e_cross': cl_e_cross,
+        'b_cross': cl_b_cross,
+        'rho': cl_b_cross_coeff,
+        'e_in_std': cl_e_leak_std,
+        'b_in_stf': cl_b_leak_std,
+        'e_out_std': cl_e_pred_std,
+        'b_out_std': cl_b_pred_std,
+        'e_targ_std': cl_e_true_std,
+        'b_targ_std': cl_b_true_std,
+        'e_cross_std': cl_e_cross_std,
+        'b_cross_std': cl_b_cross_std,
+        'rho_std': cl_b_cross_coeff_std,
+    }
+
+    return output

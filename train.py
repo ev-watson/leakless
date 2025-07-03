@@ -16,13 +16,17 @@ seed_everything(seed)
 
 torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_dtype(torch.float32)
 
+RUN_NAME = "wide"
+config.ROLLING = True
+config.SCALE = False
+
 params = {
     'lr': 3e-3,
-    'base_channels': 4*config.NSIDE,
+    'base_channels': 2*config.NSIDE,
     'sample_factor': config.SAMPLE_FACTOR,
-    'num_levels': 4,
-    'kernel_list': config.KERNEL_LIST,
-    'conv_block_layers': 2,
+    'num_levels': 3,
+    'kernel_list': [31, 15, 7],
+    'conv_block_layers': 1,
     'activation': nn.ReLU,
     'drop_rate': 0.35,
     'loss': F.l1_loss,
@@ -31,10 +35,10 @@ params = {
     # },
     'optimizer': torch.optim.NAdam,
     'optimizer_kwargs': {
-        'betas': (0.929713812248259, 0.9992144975234754),
+        'betas': (0.9241000987227369, 0.9996730603074183),
         'eps': 1e-12,
-        'weight_decay': 0.0007367192447507259,
-        'momentum_decay': 0.042899973743474464,
+        'weight_decay': 3.0464200451047e-08,
+        'momentum_decay': 0.08245131333657932,
         'decoupled_weight_decay': True
     },
     # 'scheduler': optim.lr_scheduler.CyclicLR,
@@ -47,7 +51,7 @@ params = {
     #     'gamma': 1.0,   # only used if 'mode' = 'exp_range'
     # },
     'scheduler_kwargs': {
-        'factor': 0.35,
+        'factor': 0.25,
         'patience': 4,
     },
 }
@@ -67,13 +71,14 @@ if log_steps == 0:
 
 
 trainer = Trainer(
-    max_epochs=100,
+    max_epochs=300,
     callbacks=[
         ModelCheckpoint(
-            dirpath='tlogs/checkpoints',
+            dirpath=f'tlogs/{RUN_NAME}/checkpoints',
             filename='{epoch}-{step}',
             monitor='val_loss',
             mode='min',
+            save_top_k=1,
             save_last=True,
         ),
         RollingBufferCallback(),
@@ -84,9 +89,9 @@ trainer = Trainer(
     gradient_clip_val=config.GRADIENT_CLIP_VAL,
     accelerator='gpu',
     devices=-1,
-    strategy='auto',
+    strategy='ddp' if not config.MAC else 'auto',
     sync_batchnorm=True,
-    logger=TensorBoardLogger('tlogs', name=f"unet"),
+    logger=TensorBoardLogger('tlogs', name=f"{RUN_NAME}"),
     log_every_n_steps=log_steps,
 )
 
