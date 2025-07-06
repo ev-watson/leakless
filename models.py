@@ -144,7 +144,6 @@ class SpectralUNet(LightningModule):
         channels = [in_ch] + [base_ch * (2 ** i) for i in range(nlevels)]
         for i in range(nlevels):
             lvl_nsides = nside_eff // (factor ** i)
-            lvl_nsides = lvl_nsides if lvl_nsides else 1
             self.encoders.append(nn.ModuleDict({
                 "conv": ConvBlock(
                     in_ch=channels[i],
@@ -173,7 +172,6 @@ class SpectralUNet(LightningModule):
         self.decoders = nn.ModuleList()
         for i in range(nlevels - 1, -1, -1):
             lvl_nsides = nside_eff // (factor ** (i+1))
-            lvl_nsides = lvl_nsides if lvl_nsides else 1
             up_ch = bot_ch if i == nlevels - 1 else channels[i + 2]
             self.decoders.append(nn.ModuleDict({
                 "upgrade": LearnableUpgrade(lvl_nsides, factor, up_ch) if learnable_upgrade else Upgrade(lvl_nsides, factor),

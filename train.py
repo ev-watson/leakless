@@ -28,7 +28,7 @@ params = {
     'activation': nn.ReLU,
     'learnable_upgrade': True,
     'drop_rate': 0.35,
-    'loss': F.l1_loss,
+    'loss': F.mse_loss,
     # 'loss_kwargs': {
     #     'beta': 1.575184625409794,
     # },

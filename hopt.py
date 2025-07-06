@@ -114,8 +114,6 @@ def objective(trial):
     print_block(f"TRIAL: {trial.number}, SEED: {seed}", err=True)
     seed_everything(seed)
     clear_local_ckpt_files()
-    config.ROLLING = False
-    config.SCALE = False
 
     """
     Build the hyperparameter dictionary and study parameter list.
@@ -126,13 +124,19 @@ def objective(trial):
     params = {}
     loss_params = {}
 
+    max_levels = 0
+    neff = config.NSIDE_EFF
+    while neff != 1:
+        neff = neff // 2
+        max_levels += 1
+
     # TRAINING
     params['lr'] = trial.suggest_float('lr', 1e-6, 1e0)
 
     # ARCHITECTURE
     # params['base_channels'] = trial.suggest_categorical('base_channels', [config.NSIDE * 2**i for i in range(3)])
     # params["conv_block_levels"] = trial.suggest_int('conv_block_levels', 1, 2)
-    params['num_levels'] = trial.suggest_int('num_levels', 2, 5)
+    params['num_levels'] = trial.suggest_int('num_levels', 1, max_levels)
     params['learnable_upgrade'] = trial.suggest_categorical('learnable_upgrade', [True, False])
     params['drop_rate'] = trial.suggest_float('drop_rate', 0.01, 0.5)
     # params['dropout_frequency'] = trial.suggest_int('dropout_frequency', 1, params['num_layers'])
