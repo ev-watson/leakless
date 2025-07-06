@@ -10,32 +10,32 @@ torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_
 
 
 class Degrade(nn.Module):
-    def __init__(self, nsides, degradation_factor):
+    def __init__(self, nside, degradation_factor):
         """
         degradation module to downsample nside resolution by degradation_factor
         Args:
-            nsides (int): Original healpix NSIDE.
+            nside (int): Original healpix NSIDE.
             degradation_factor (int): Downsampling factor.
         """
         super().__init__()
-        new_nsides = nsides // degradation_factor
-        self._new_len = alm_len_from_nside(new_nsides)
+        new_nside = nside // degradation_factor
+        self._new_len = alm_len_from_nside(new_nside if new_nside else 1)
 
     def forward(self, x):
         return x[..., :self._new_len]
 
 
 class Upgrade(nn.Module):
-    def __init__(self, nsides, upgrade_factor):
+    def __init__(self, nside, upgrade_factor):
         """
         upgrade module to upsample (zero-pad) nside resolution by upgrade_factor
         Args:
-            nsides (int): Original healpix NSIDE.
+            nside (int): Original healpix NSIDE.
             upgrade_factor (int): Upsampling factor.
         """
         super().__init__()
-        self.N_small = alm_len_from_nside(nsides)
-        self.N_large = alm_len_from_nside(nsides * upgrade_factor)
+        self.N_small = alm_len_from_nside(nside)
+        self.N_large = alm_len_from_nside(nside * upgrade_factor)
 
     def forward(self, x):
         B, C, _ = x.shape
@@ -144,6 +144,7 @@ class SpectralUNet(LightningModule):
         channels = [in_ch] + [base_ch * (2 ** i) for i in range(nlevels)]
         for i in range(nlevels):
             lvl_nsides = nside_eff // (factor ** i)
+            lvl_nsides = lvl_nsides if lvl_nsides else 1
             self.encoders.append(nn.ModuleDict({
                 "conv": ConvBlock(
                     in_ch=channels[i],
@@ -172,6 +173,7 @@ class SpectralUNet(LightningModule):
         self.decoders = nn.ModuleList()
         for i in range(nlevels - 1, -1, -1):
             lvl_nsides = nside_eff // (factor ** (i+1))
+            lvl_nsides = lvl_nsides if lvl_nsides else 1
             up_ch = bot_ch if i == nlevels - 1 else channels[i + 2]
             self.decoders.append(nn.ModuleDict({
                 "upgrade": LearnableUpgrade(lvl_nsides, factor, up_ch) if learnable_upgrade else Upgrade(lvl_nsides, factor),

@@ -29,7 +29,7 @@ BASE_CHANNELS = 2 * NSIDE
 KERNEL_LIST = [63, 31, 15, 7]
 SAMPLE_FACTOR = 2
 BIAS = True
-LEARN_UP = False     # enables learnable upgrade layer
+LEARN_UP = True     # enables learnable upgrade layer
 
 # GENERAL ARCHITECTURE
 NUM_LEVELS = 4
