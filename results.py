@@ -45,7 +45,7 @@ lensedcl_e = lensedCL.T[1]
 lensedcl_b = lensedCL.T[2]
 
 nside = config.NSIDE
-lmax = 3 * nside - 1
+lmax = config.LMAX
 seed = config.SEED
 np.random.seed(seed)
 

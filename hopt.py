@@ -127,11 +127,11 @@ def objective(trial):
     loss_params = {}
 
     # TRAINING
-    params['lr'] = trial.suggest_float('lr', 1e-7, 1e0)
+    params['lr'] = trial.suggest_float('lr', 1e-6, 1e0)
 
     # ARCHITECTURE
-    params['base_channels'] = trial.suggest_categorical('base_channels', [config.NSIDE // 2, config.NSIDE, config.NSIDE * 2])
-    params["conv_block_levels"] = trial.suggest_int('conv_block_levels', 1, 2)
+    params['base_channels'] = trial.suggest_categorical('base_channels', [config.NSIDE * 2**i for i in range(3)])
+    # params["conv_block_levels"] = trial.suggest_int('conv_block_levels', 1, 2)
     params['num_levels'] = trial.suggest_int('num_levels', 2, 5)
     params['learnable_upgrade'] = trial.suggest_categorical('learnable_upgrade', [True, False])
     params['drop_rate'] = trial.suggest_float('drop_rate', 0.01, 0.5)
@@ -209,7 +209,7 @@ def objective(trial):
 
     # return trainer.callback_metrics['test_loss'].item()
 
-    rtrials = 5000
+    rtrials = 3000
     metric = leak_test(model, ntrials=rtrials, hopt=True, err=True, mean_axis=None)
     return metric.item()
 

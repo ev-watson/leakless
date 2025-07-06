@@ -6,6 +6,7 @@ import torch
 from tqdm import tqdm
 
 import config
+from utils import alm_len_from_lmax
 from utils.harmonic_helpers import alm_len_from_nsides, recombine
 from utils.logging_utils import print_block
 from utils.losses import calc_mae, calc_mape
@@ -111,7 +112,7 @@ def model_analysis(model, ntrials, nside, lmax, mask, outstream=sys.stdout):
     input_vector, output_vector, target_vector = leak_test(model, ntrials=ntrials)
 
     # recombines the imaginary and real parts to one number
-    alm_len = alm_len_from_nsides(nside)
+    alm_len = alm_len_from_lmax(lmax)
     alm_e_in = np.zeros((ntrials, alm_len), dtype=np.complex128)
     alm_b_in = np.zeros((ntrials, alm_len), dtype=np.complex128)
     alm_e_out = np.zeros((ntrials, alm_len), dtype=np.complex128)
@@ -134,12 +135,12 @@ def model_analysis(model, ntrials, nside, lmax, mask, outstream=sys.stdout):
     b_cross = np.zeros((ntrials, lmax + 1), dtype=np.float64)
     b_cross_coeff = np.zeros((ntrials, lmax + 1), dtype=np.float64)
     for i in tqdm(range(ntrials)):
-        e_in_masked_map = hp.alm2map(alm_e_in[i], nside=nside, lmax=lmax) * mask
-        b_in_masked_map = hp.alm2map(alm_b_in[i], nside=nside, lmax=lmax) * mask
-        e_out_masked_map = hp.alm2map(alm_e_out[i], nside=nside, lmax=lmax) * mask
-        b_out_masked_map = hp.alm2map(alm_b_out[i], nside=nside, lmax=lmax) * mask
-        e_targ_masked_map = hp.alm2map(alm_e_targ[i], nside=nside, lmax=lmax) * mask
-        b_targ_masked_map = hp.alm2map(alm_b_targ[i], nside=nside, lmax=lmax) * mask
+        e_in_masked_map = hp.alm2map(alm_e_in[i], nside=nside) * mask
+        b_in_masked_map = hp.alm2map(alm_b_in[i], nside=nside) * mask
+        e_out_masked_map = hp.alm2map(alm_e_out[i], nside=nside) * mask
+        b_out_masked_map = hp.alm2map(alm_b_out[i], nside=nside) * mask
+        e_targ_masked_map = hp.alm2map(alm_e_targ[i], nside=nside) * mask
+        b_targ_masked_map = hp.alm2map(alm_b_targ[i], nside=nside) * mask
         e_in[i] = hp.anafast(e_in_masked_map, lmax=lmax)
         b_in[i] = hp.anafast(b_in_masked_map, lmax=lmax)
         e_out[i] = hp.anafast(e_out_masked_map, lmax=lmax)
