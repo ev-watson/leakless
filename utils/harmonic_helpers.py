@@ -3,33 +3,32 @@ import math
 import numpy as np
 
 
-def alm_len_from_nsides(nsides):
-    """
-    helper function to find len of an alm_array from nside
-    assuming lmax = 3*nside - 1
-    :param nsides: int, resolution of map
-    :return: int, len of alm array
-    """
-    lmax = 3*nsides - 1
-    return (lmax+1) * (lmax+2) // 2
-
-
 def alm_len_from_lmax(lmax):
     """
     helper function to find len of an alm_array from lmax
     :param lmax: int, max ell mode
     :return: int, len of alm array
     """
-    return (lmax + 1) * (lmax + 2) // 2
+    return int((lmax + 1) * (lmax + 2) // 2)
 
 
-def nsides_from_alm_len(alm_len):
+def alm_len_from_nside(nside):
+    """
+    helper function to find len of an alm_array from nside
+    assuming lmax = 3*nside - 1
+    :param nside: int, resolution of map
+    :return: int, len of alm array
+    """
+    return alm_len_from_lmax(3 * nside - 1)
+
+
+def nside_from_alm_len(alm_len):
     """
     helper function to find nside from alm array len
     :param alm_len: int, len of alm array
     :return: int, resolution of map
     """
-    return (math.sqrt(8*alm_len+1)-1)//6
+    return int((math.sqrt(8*alm_len+1)-1)//6)
 
 
 def lmax_from_alm_len(alm_len):
@@ -38,7 +37,7 @@ def lmax_from_alm_len(alm_len):
     :param alm_len: int, len of alm array
     :return: int, max ell mode
     """
-    return 3*nsides_from_alm_len(alm_len) - 1
+    return int(3 * nside_from_alm_len(alm_len) - 1)
 
 
 def recombine(channel_tensor):
@@ -54,4 +53,4 @@ def recombine(channel_tensor):
 
     e_comb = e_r + 1j*e_i
     b_comb = b_r + 1j*b_i
-    return e_comb.astype(np.complex128), b_comb.astype(np.complex128)
+    return e_comb, b_comb

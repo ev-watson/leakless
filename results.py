@@ -49,9 +49,9 @@ lmax = config.LMAX
 seed = config.SEED
 np.random.seed(seed)
 
-mask = hp.read_map("binary_GAL_mask_N1024.fits", field=1)
-fsky = np.mean(mask)
+mask = hp.read_map(config.MASK_FILE, field=1)
 low_mask = hp.ud_grade(mask, nside_out=nside, dtype=np.int32)
+fsky = np.mean(mask)
 
 model = Leakless.load_from_checkpoint(args.ckpt_path)
 

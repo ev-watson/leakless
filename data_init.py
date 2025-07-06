@@ -83,13 +83,13 @@ def main():
     lensedCL = powers['lensed_scalar']
 
     # prepare mask
-    mask = hp.read_map("binary_GAL_mask_N1024.fits", field=1)
+    mask = hp.read_map(config.MASK_FILE, field=1)
     low_mask = hp.ud_grade(mask, nside_out=nside, dtype=np.int32)
 
     # ensures unique seeds
     seeds = random.sample(range(2 ** 32 - 1), k=n_samples)
     stacks = np.empty((n_samples, 8, alm_len_from_lmax(lmax)), dtype=np.float64)
-    for i, seed in enumerate(tqdm(seeds, desc="Generating stacks") if config.MAC else range(len(seeds))):
+    for i, seed in enumerate(tqdm(seeds, desc="Generating stacks", mininterval=10)):
         stacks[i] = generate_stack(seed, lensedCL, nside=nside, lmax=lmax, mask=low_mask)
 
     # save file

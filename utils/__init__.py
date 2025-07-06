@@ -3,15 +3,16 @@ import torch
 import config
 
 from .analysis import (
+    rho_metric,
     print_analysis,
     leak_test,
     model_analysis
 )
 
 from .harmonic_helpers import (
-    alm_len_from_nsides,
     alm_len_from_lmax,
-    nsides_from_alm_len,
+    alm_len_from_nside,
+    nside_from_alm_len,
     lmax_from_alm_len,
     recombine,
 )

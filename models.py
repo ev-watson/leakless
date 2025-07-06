@@ -4,7 +4,7 @@ from lightning.pytorch import LightningModule
 from torch import nn
 
 import config
-from utils import alm_len_from_nsides, print_block, PredictorMixin, make_module
+from utils import alm_len_from_nside, print_block, PredictorMixin, make_module
 
 torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_dtype(torch.float32)
 
@@ -19,7 +19,7 @@ class Degrade(nn.Module):
         """
         super().__init__()
         new_nsides = nsides // degradation_factor
-        self._new_len = alm_len_from_nsides(new_nsides)
+        self._new_len = alm_len_from_nside(new_nsides)
 
     def forward(self, x):
         return x[..., :self._new_len]
@@ -34,8 +34,8 @@ class Upgrade(nn.Module):
             upgrade_factor (int): Upsampling factor.
         """
         super().__init__()
-        self.N_small = alm_len_from_nsides(nsides)
-        self.N_large = alm_len_from_nsides(nsides * upgrade_factor)
+        self.N_small = alm_len_from_nside(nsides)
+        self.N_large = alm_len_from_nside(nsides * upgrade_factor)
 
     def forward(self, x):
         B, C, _ = x.shape
@@ -54,8 +54,8 @@ class LearnableUpgrade(nn.Module):
             channels (int): Number of channels.
         """
         super().__init__()
-        self.N_small = alm_len_from_nsides(nsides)
-        self.N_large = alm_len_from_nsides(nsides * upgrade_factor)
+        self.N_small = alm_len_from_nside(nsides)
+        self.N_large = alm_len_from_nside(nsides * upgrade_factor)
 
         # learnable params to act as extended values
         self.expand = nn.Parameter(torch.zeros(1, channels, self.N_large - self.N_small))

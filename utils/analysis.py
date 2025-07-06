@@ -6,37 +6,76 @@ import torch
 from tqdm import tqdm
 
 import config
-from utils import alm_len_from_lmax
-from utils.harmonic_helpers import alm_len_from_nsides, recombine
+from utils.harmonic_helpers import alm_len_from_lmax, nside_from_alm_len, lmax_from_alm_len, recombine
 from utils.logging_utils import print_block
 from utils.losses import calc_mae, calc_mape
 
 
-def print_analysis(g, t, ntrials, mape, suppress, err, verbose, axis=None):
+def rho_metric(input_vector, output_vector):
+    """
+    calculates the deviation of the cross correlation coefficient between input and output (rho) from 1
+    Args:
+        input_vector: array-like, shape (ntrials, 4, alm_len)
+        output_vector: array-like, shape (ntrials, 4, alm_len)
+
+    Returns:
+        deviation: float, 1-rho
+    """
+    ntrials = input_vector.shape[0]
+    nside = nside_from_alm_len(input_vector.shape[-1])
+    lmax = lmax_from_alm_len(input_vector.shape[-1])
+
+    mask = hp.read_map(config.MASK_FILE, field=1)
+    mask = hp.ud_grade(mask, nside_out=nside, dtype=np.int32)
+
+    # recombines the imaginary and real parts to one number
+    alm_len = alm_len_from_lmax(lmax)
+    alm_b_in = np.zeros((ntrials, alm_len), dtype=np.complex128)
+    alm_b_out = np.zeros((ntrials, alm_len), dtype=np.complex128)
+    for i in range(ntrials):
+        alm_b_in[i] = recombine(input_vector[i])[1]
+        alm_b_out[i] = recombine(output_vector[i])[1]
+
+    # make maps from alm arrays and calc cross coeff (rho)
+    b_in = np.zeros((ntrials, lmax + 1), dtype=np.float64)
+    b_out = np.zeros((ntrials, lmax + 1), dtype=np.float64)
+    b_cross = np.zeros((ntrials, lmax + 1), dtype=np.float64)
+    b_cross_coeff = np.zeros((ntrials, lmax + 1), dtype=np.float64)
+    for i in tqdm(range(ntrials)):
+        b_in_masked_map = hp.alm2map(alm_b_in[i], nside=nside) * mask
+        b_out_masked_map = hp.alm2map(alm_b_out[i], nside=nside) * mask
+        b_in[i] = hp.anafast(b_in_masked_map, lmax=lmax)
+        b_out[i] = hp.anafast(b_out_masked_map, lmax=lmax)
+
+
+        b_cross[i] = hp.anafast(b_in_masked_map, b_out_masked_map, lmax=lmax)
+
+        b_cross_coeff[i] = b_cross[i] / np.sqrt(b_in[i] * b_out[i])
+
+    # take averages of all trials
+    cl_b_cross_coeff = np.mean(b_cross_coeff)
+
+    return 1 - cl_b_cross_coeff
+
+
+def print_analysis(i, g, t, ntrials, suppress, err, verbose):
     """
     Helper function for random tests
     """
-    metric = calc_mae(g, t, axis=axis)
+    metric = torch.tensor(rho_metric(i, g))
     if not suppress:
         print_block(f"RANDOM INPUT TESTING TRIALS: {ntrials}", err=err)
-        print_block(f"MAE: {metric:.6g}", err=err)
+        print_block(f"METRIC: {metric:.6g}", err=err)
         if verbose:
             print_block("PREDICTIONS:", err=err)
             print(g)
             print_block("TARGETS:", err=err)
             print(t)
 
-    if mape:
-        mape_val = calc_mape(g, t, axis=axis)
-        if not suppress:
-            print_block(f"MAPE: {mape_val:.6g}%", err=err)
-        return metric, mape_val
-    else:
-        return metric
+    return metric
 
 
-def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, suppress=False, err=False, verbose=False,
-              mean_axis=None):
+def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, suppress=False, err=False, verbose=False):
     """
     Performs random input testing to evaluate the accuracy of GNN's acceleration prediction.
     ntrials will be rounded to nearest i
@@ -47,7 +86,6 @@ def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, supp
     :param suppress: bool, if true, suppresses print statements.
     :param err: bool, enable printing to stderr as well.
     :param verbose: bool, enable verbose output
-    :param mean_axis: int, axis along which to calculate analysis statistics, None for entire array
     :return: tuple of (input, output, targets) tensors
     """
     if not suppress:
@@ -82,11 +120,15 @@ def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, supp
     if not suppress:
         print_block("TESTING COMPLETE, BEGINNING ANALYSIS", err=err)
 
-    metric = print_analysis(pred_vals, target_data, ntrials, False, suppress, err, verbose, axis=mean_axis)
+    input_vector = input_data.cpu().numpy()
+    output_vector = pred_vals.cpu().numpy()
+    target_vector = target_data.cpu().numpy()
+
+    metric = print_analysis(input_vector, output_vector, target_vector, ntrials, suppress, err, verbose)
     if hopt:
         return metric
     else:
-        return input_data.cpu().numpy(), pred_vals.cpu().numpy(), target_data.cpu().numpy()
+        return input_vector, output_vector, target_vector
 
 
 def model_analysis(model, ntrials, nside, lmax, mask, outstream=sys.stdout):

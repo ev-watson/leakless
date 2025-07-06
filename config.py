@@ -29,7 +29,7 @@ BASE_CHANNELS = 2 * NSIDE
 KERNEL_LIST = [63, 31, 15, 7]
 SAMPLE_FACTOR = 2
 BIAS = True
-LEARN_UP = True     # enables learnable upgrade layer
+LEARN_UP = False     # enables learnable upgrade layer
 
 # GENERAL ARCHITECTURE
 NUM_LEVELS = 4
@@ -47,6 +47,7 @@ WEIGHT_DECAY = 7e-3
 # AUX
 DATA_FILE = 'stacks.npy'
 SCALER_FILE = 'scaler.pkl'     # None to turn off saving
+MASK_FILE = "binary_GAL_mask_N1024.fits"
 
 # LOGGING
 ON_STEP = False
