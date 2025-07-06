@@ -16,9 +16,7 @@ seed_everything(seed)
 
 torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_dtype(torch.float32)
 
-RUN_NAME = "wide"
-config.ROLLING = True
-config.SCALE = False
+RUN_NAME = "lowell"
 
 params = {
     'lr': 3e-3,

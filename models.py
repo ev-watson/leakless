@@ -96,7 +96,7 @@ class SpectralUNet(LightningModule):
             degradation_factor (int, optional): Downsampling upgrade_factor applied to NSIDE at each level. Default config.SAMPLE_FACTOR.
         """
         super().__init__()
-        nsides = kwargs.get("nside", config.NSIDE)
+        nside_eff = kwargs.get("nside_eff", config.NSIDE_EFF)
         in_ch = kwargs.get("in_channels", config.IN_CHANNELS)
         base_ch = kwargs.get("base_channels", config.BASE_CHANNELS)
         nlevels = kwargs.get("num_levels", config.NUM_LEVELS)
@@ -107,11 +107,13 @@ class SpectralUNet(LightningModule):
         activation = kwargs.get("activation", nn.ReLU)
         bias = kwargs.get("bias", config.BIAS)
 
+        assert len(kernel_list) == nlevels, f"Wrong kernel list: {kernel_list}, for nlevels={nlevels}"
+
         # encoder: convblock then degrade
         self.encoders = nn.ModuleList()
         channels = [in_ch] + [base_ch * (2 ** i) for i in range(nlevels)]
         for i in range(nlevels):
-            lvl_nsides = nsides // (factor ** i)
+            lvl_nsides = nside_eff // (factor ** i)
             self.encoders.append(nn.ModuleDict({
                 "conv": ConvBlock(
                     in_ch=channels[i],
@@ -139,7 +141,7 @@ class SpectralUNet(LightningModule):
         # decoder: upsample, concat skip, convblock
         self.decoders = nn.ModuleList()
         for i in range(nlevels - 1, -1, -1):
-            lvl_nsides = nsides // (factor ** (i+1))
+            lvl_nsides = nside_eff // (factor ** (i+1))
             self.decoders.append(nn.ModuleDict({
                 "upgrade": Upgrade(lvl_nsides, factor),
                 "conv": ConvBlock(
@@ -150,7 +152,7 @@ class SpectralUNet(LightningModule):
                     activation=activation,
                     bias=bias
                 ),
-                # testing removing dropout layers
+                # currently disabled
                 # 'drop': nn.Dropout(p=drop_rate) if i == nlevels - 1 else nn.Identity(),
             }))
 

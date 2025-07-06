@@ -14,6 +14,15 @@ def alm_len_from_nsides(nsides):
     return (lmax+1) * (lmax+2) // 2
 
 
+def alm_len_from_lmax(lmax):
+    """
+    helper function to find len of an alm_array from lmax
+    :param lmax: int, max ell mode
+    :return: int, len of alm array
+    """
+    return (lmax + 1) * (lmax + 2) // 2
+
+
 def nsides_from_alm_len(alm_len):
     """
     helper function to find nside from alm array len
@@ -21,6 +30,15 @@ def nsides_from_alm_len(alm_len):
     :return: int, resolution of map
     """
     return (math.sqrt(8*alm_len+1)-1)//6
+
+
+def lmax_from_alm_len(alm_len):
+    """
+    helper function to find lmax from alm array len
+    :param alm_len: int, len of alm array
+    :return: int, max ell mode
+    """
+    return 3*nsides_from_alm_len(alm_len) - 1
 
 
 def recombine(channel_tensor):

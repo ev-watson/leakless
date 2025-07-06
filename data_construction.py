@@ -36,11 +36,16 @@ class indexedDataset(Dataset):
         self.input_slice = slice(None, config.IN_CHANNELS)
         self.target_slice = slice(config.IN_CHANNELS, None)
 
+        if config.MAC:
+            self.dtype = np.float32
+        else:
+            self.dtype = np.float64
+
     def __len__(self):
         return len(self.indices)
 
     def __getitem__(self, idx):
-        raw = torch.from_numpy(self._data[self.indices[idx]].copy())
+        raw = torch.from_numpy(self._data[self.indices[idx]].astype(self.dtype, copy=False).copy())
         x = raw[self.input_slice]
         y = raw[self.target_slice]
         return x, y

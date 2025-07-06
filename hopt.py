@@ -132,7 +132,7 @@ def objective(trial):
     # ARCHITECTURE
     params['base_channels'] = trial.suggest_categorical('base_channels', [config.NSIDE // 2, config.NSIDE, config.NSIDE * 2])
     params["conv_block_levels"] = trial.suggest_int('conv_block_levels', 1, 2)
-    params['num_levels'] = trial.suggest_int('num_levels', 2, 5)
+    params['num_levels'] = 5  # trial.suggest_int('num_levels', 2, 5)
     params['drop_rate'] = trial.suggest_float('drop_rate', 0.01, 0.5)
     # params['dropout_frequency'] = trial.suggest_int('dropout_frequency', 1, params['num_layers'])
     # params['sample_factor'] = trial.suggest_categorical('sample_factor', [2, 4])
@@ -142,10 +142,10 @@ def objective(trial):
     # params['kernel_list'] = list(reversed([1 + 2*i for i in range(params['num_levels'])]))
 
     # make kernel list for counting down 1 below powers of 2 (offset by nlevels) based on nlevels
-    # params['kernel_size'] = list(reversed([2**(i+params['num_levels']) - 1 for i in range(params['num_levels'])]))
+    # params['kernel_list'] = list(reversed([2**(i+params['num_levels']) - 1 for i in range(params['num_levels'])]))
 
     # make kernel list for counting down 1 below powers of 2 based on nside
-    params['kernel_size'] = [int(config.NSIDE/2**(i+1)) - 1 for i in range(params['num_levels'])]
+    params['kernel_list'] = [int(config.NSIDE/2**(i+1)) - 1 for i in range(params['num_levels'])]
 
     # ALGORITHMS
     # ---activation---

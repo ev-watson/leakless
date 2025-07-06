@@ -10,7 +10,9 @@ from .analysis import (
 
 from .harmonic_helpers import (
     alm_len_from_nsides,
+    alm_len_from_lmax,
     nsides_from_alm_len,
+    lmax_from_alm_len,
     recombine,
 )
 

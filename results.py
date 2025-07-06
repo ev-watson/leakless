@@ -1,23 +1,17 @@
-import os
 import argparse
-import numpy as np
-import healpy as hp
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-from matplotlib import pyplot as plt
+import os
+
 import camb
-from camb import model, initialpower
-import pymaster as nmt
+import healpy as hp
+import numpy as np
+from matplotlib import pyplot as plt
 
 import config
 from models import Leakless
-from data_construction import leaklessDataModule
-import utils as ut
-from utils import alm_len_from_nsides, recombine, model_analysis
+from utils import model_analysis, sample_normal
 
 print(f'Using healpy {hp.__version__} installed at {os.path.dirname(hp.__file__)}')
 print(f'Using CAMB {camb.__version__} installed at {os.path.dirname(camb.__file__)}')
-print(f'Using pymaster {nmt.__version__} installed at {os.path.dirname(nmt.__file__)}')
 
 parser = argparse.ArgumentParser(description="Model Results Analysis")
 parser.add_argument("--ckpt_path", "-c", type=str, default=None)
@@ -41,7 +35,7 @@ params = {
     'lmax': 3000,
 }
 
-sampled = ut.sample_normal(params, best_fit=True)
+sampled = sample_normal(params, best_fit=True)
 
 pars = camb.set_params(**sampled)
 results = camb.get_results(pars)
@@ -51,7 +45,7 @@ lensedcl_e = lensedCL.T[1]
 lensedcl_b = lensedCL.T[2]
 
 nside = config.NSIDE
-lmax = config.LMAX
+lmax = 3 * nside - 1
 seed = config.SEED
 np.random.seed(seed)
 
@@ -59,7 +53,9 @@ mask = hp.read_map("binary_GAL_mask_N1024.fits", field=1)
 fsky = np.mean(mask)
 low_mask = hp.ud_grade(mask, nside_out=nside, dtype=np.int32)
 
-analysis_dict = model_analysis(ckpt_path=args.ckpt_path,
+model = Leakless.load_from_checkpoint(args.ckpt_path)
+
+analysis_dict = model_analysis(model=model,
                                ntrials=args.ntrials,
                                nside=nside,
                                lmax=lmax,
@@ -112,7 +108,8 @@ plt.legend()
 plt.savefig('results/figures/in_out_cross_plot.png')
 
 plt.figure(figsize=(6, 6))
-plt.errorbar(np.arange(lmax + 1), cl_b_cross_coeff, yerr=cl_b_cross_coeff_std, label=rf'$\bar{{\rho_B}}\approx{np.mean(cl_b_cross_coeff):.3g}\pm{np.mean(cl_b_cross_coeff_std):.3g}$', fmt='o')
+plt.errorbar(np.arange(lmax + 1), cl_b_cross_coeff, yerr=cl_b_cross_coeff_std,
+             label=rf'$\bar{{\rho_B}}\approx{np.mean(cl_b_cross_coeff):.3g}\pm{np.mean(cl_b_cross_coeff_std):.3g}$', fmt='o')
 plt.xlim(2, lmax)
 plt.legend()
 plt.savefig('results/figures/rho_plot.png')

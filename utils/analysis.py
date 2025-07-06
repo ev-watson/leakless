@@ -1,8 +1,12 @@
 import sys
+
+import healpy as hp
 import numpy as np
 import torch
+from tqdm import tqdm
 
 import config
+from utils.harmonic_helpers import alm_len_from_nsides, recombine
 from utils.logging_utils import print_block
 from utils.losses import calc_mae, calc_mape
 
@@ -30,7 +34,8 @@ def print_analysis(g, t, ntrials, mape, suppress, err, verbose, axis=None):
         return metric
 
 
-def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, suppress=False, err=False, verbose=False, mean_axis=None):
+def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, suppress=False, err=False, verbose=False,
+              mean_axis=None):
     """
     Performs random input testing to evaluate the accuracy of GNN's acceleration prediction.
     ntrials will be rounded to nearest i
@@ -83,11 +88,11 @@ def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, supp
         return input_data.cpu().numpy(), pred_vals.cpu().numpy(), target_data.cpu().numpy()
 
 
-def model_analysis(ckpt_path, ntrials, nside, lmax, mask, outstream=sys.stdout):
+def model_analysis(model, ntrials, nside, lmax, mask, outstream=sys.stdout):
     """
     Takes in a model checkpoint, runs map and final power spectrum analysis, returns tensors for plotting
     Args:
-        ckpt_path: str, path to model checkpoint
+        model: PyTorch model
         ntrials: int, number of trials
         nside: int, HEALPix nside
         lmax: int, HEALPix lmax
@@ -97,10 +102,9 @@ def model_analysis(ckpt_path, ntrials, nside, lmax, mask, outstream=sys.stdout):
     Returns: dict with all arrays necessary for plotting
 
     """
-    model = Leakless.load_from_checkpoint(ckpt_path)
-
     # writes a text based illustration of the model to outstream
     with open(outstream, 'w') as f:
+        print(model.hparams, file=f)
         print(model, file=f)
 
     # grabs necessary tensors
@@ -178,7 +182,7 @@ def model_analysis(ckpt_path, ntrials, nside, lmax, mask, outstream=sys.stdout):
         'b_cross': cl_b_cross,
         'rho': cl_b_cross_coeff,
         'e_in_std': cl_e_leak_std,
-        'b_in_stf': cl_b_leak_std,
+        'b_in_std': cl_b_leak_std,
         'e_out_std': cl_e_pred_std,
         'b_out_std': cl_b_pred_std,
         'e_targ_std': cl_e_true_std,

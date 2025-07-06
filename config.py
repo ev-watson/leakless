@@ -7,10 +7,11 @@ MAC = platform == 'darwin'  # True if running on mac, False if anything else
 # CHANGING NSIDE MEANS RERUNNING DATA_INIT
 NSIDE = 64    # Project computation scales as O(NSIDE**2) right now
 # CHANGING NSIDE MEANS RERUNNING DATA_INIT
-LMAX = 3 * 16 - 1
+NSIDE_EFF = 16
+LMAX = 3 * NSIDE_EFF - 1
 
 # DATA GENERATION
-ROLLING = not MAC and True      # does not work with scaling or mac
+ROLLING = True #not MAC and True      # does not work with scaling or mac
 SCALE = not ROLLING and False    # only turns on if True and ROLLING is not on
 STACK_SIZE = 50000      # total dataset available to pull from
 NUM_SAMPLES = 12000     # initial number of pulls to use during training/val/testing
