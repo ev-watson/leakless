@@ -28,7 +28,7 @@ def generate_stack(seed, cls, nside, lmax, mask):
 
     # full maps
     tqu = hp.synfast(cls.T, nside=nside, new=True)
-    teb = hp.map2alm(tqu, lmax=lmax)
+    teb = hp.map2alm(tqu)
     emode = teb[1]
     bmode = teb[2]
     emap = hp.alm2map(emode, nside=nside)
