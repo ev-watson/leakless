@@ -129,6 +129,7 @@ def objective(trial):
     while neff != 1:
         neff = neff // 2
         max_levels += 1
+    max_levels -= 1
 
     # TRAINING
     params['lr'] = trial.suggest_float('lr', 1e-6, 1e0)

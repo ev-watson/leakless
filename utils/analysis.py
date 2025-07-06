@@ -41,7 +41,7 @@ def rho_metric(input_vector, output_vector):
     b_out = np.zeros((ntrials, lmax + 1), dtype=np.float64)
     b_cross = np.zeros((ntrials, lmax + 1), dtype=np.float64)
     b_cross_coeff = np.zeros((ntrials, lmax + 1), dtype=np.float64)
-    for i in tqdm(range(ntrials)):
+    for i in range(ntrials):
         b_in_masked_map = hp.alm2map(alm_b_in[i], nside=nside) * mask
         b_out_masked_map = hp.alm2map(alm_b_out[i], nside=nside) * mask
         b_in[i] = hp.anafast(b_in_masked_map, lmax=lmax)

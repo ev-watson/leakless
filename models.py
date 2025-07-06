@@ -18,8 +18,7 @@ class Degrade(nn.Module):
             degradation_factor (int): Downsampling factor.
         """
         super().__init__()
-        new_nside = nside // degradation_factor
-        self._new_len = alm_len_from_nside(new_nside if new_nside else 1)
+        self._new_len = alm_len_from_nside(nside // degradation_factor)
 
     def forward(self, x):
         return x[..., :self._new_len]
