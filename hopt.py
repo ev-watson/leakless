@@ -132,7 +132,8 @@ def objective(trial):
     # ARCHITECTURE
     params['base_channels'] = trial.suggest_categorical('base_channels', [config.NSIDE // 2, config.NSIDE, config.NSIDE * 2])
     params["conv_block_levels"] = trial.suggest_int('conv_block_levels', 1, 2)
-    params['num_levels'] = 5  # trial.suggest_int('num_levels', 2, 5)
+    params['num_levels'] = trial.suggest_int('num_levels', 2, 5)
+    params['learnable_upgrade'] = trial.suggest_categorical('learnable_upgrade', [True, False])
     params['drop_rate'] = trial.suggest_float('drop_rate', 0.01, 0.5)
     # params['dropout_frequency'] = trial.suggest_int('dropout_frequency', 1, params['num_layers'])
     # params['sample_factor'] = trial.suggest_categorical('sample_factor', [2, 4])

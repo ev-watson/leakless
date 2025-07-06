@@ -26,6 +26,7 @@ params = {
     'kernel_list': [31, 15, 7],
     'conv_block_layers': 1,
     'activation': nn.ReLU,
+    'learnable_upgrade': True,
     'drop_rate': 0.35,
     'loss': F.l1_loss,
     # 'loss_kwargs': {

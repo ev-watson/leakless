@@ -34,15 +34,44 @@ class Upgrade(nn.Module):
             upgrade_factor (int): Upsampling factor.
         """
         super().__init__()
-        new_nsides = nsides * upgrade_factor
         self.N_small = alm_len_from_nsides(nsides)
-        self.N_large = alm_len_from_nsides(new_nsides)
+        self.N_large = alm_len_from_nsides(nsides * upgrade_factor)
 
     def forward(self, x):
         B, C, _ = x.shape
         out = x.new_zeros((B, C, self.N_large))
         out[..., :self.N_small] = x
         return out
+
+
+class LearnableUpgrade(nn.Module):
+    def __init__(self, nsides, upgrade_factor, channels):
+        """
+        upgrade module to upsample (learned padding) nside resolution by upgrade_factor
+        Args:
+            nsides (int): Original healpix NSIDE.
+            upgrade_factor (int): Upsampling factor.
+            channels (int): Number of channels.
+        """
+        super().__init__()
+        self.N_small = alm_len_from_nsides(nsides)
+        self.N_large = alm_len_from_nsides(nsides * upgrade_factor)
+
+        # learnable params to act as extended values
+        self.expand = nn.Parameter(torch.zeros(1, channels, self.N_large - self.N_small))
+
+        # conv sequence
+        self.proj = nn.Sequential(
+            nn.Conv1d(channels, channels, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv1d(channels, channels, kernel_size=3, padding=1)
+        )
+
+    def forward(self, x):
+        B, C, _ = x.shape
+        pad = self.expand.expand(B, -1, -1)
+        x_full = torch.cat([x, pad], dim=-1)
+        return self.proj(x_full)
 
 
 class ConvBlock(nn.Module):
@@ -106,6 +135,7 @@ class SpectralUNet(LightningModule):
         drop_rate = kwargs.get("drop_rate", config.DROP_RATE)
         activation = kwargs.get("activation", nn.ReLU)
         bias = kwargs.get("bias", config.BIAS)
+        learnable_upgrade = kwargs.get("learnable_upgrade", config.LEARN_UP)
 
         assert len(kernel_list) == nlevels, f"Wrong kernel list: {kernel_list}, for nlevels={nlevels}"
 
@@ -142,10 +172,11 @@ class SpectralUNet(LightningModule):
         self.decoders = nn.ModuleList()
         for i in range(nlevels - 1, -1, -1):
             lvl_nsides = nside_eff // (factor ** (i+1))
+            up_ch = bot_ch if i == nlevels - 1 else channels[i + 2]
             self.decoders.append(nn.ModuleDict({
-                "upgrade": Upgrade(lvl_nsides, factor),
+                "upgrade": LearnableUpgrade(lvl_nsides, factor, up_ch) if learnable_upgrade else Upgrade(lvl_nsides, factor),
                 "conv": ConvBlock(
-                    in_ch=(bot_ch if i == nlevels - 1 else channels[i + 2]) + channels[i + 1],
+                    in_ch=up_ch + channels[i + 1],
                     out_ch=channels[i + 1],
                     kernel_size=kernel_list[i],
                     conv_block_levels=conv_block_levels,

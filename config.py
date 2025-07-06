@@ -11,7 +11,7 @@ NSIDE_EFF = 16
 LMAX = 3 * NSIDE_EFF - 1
 
 # DATA GENERATION
-ROLLING = True #not MAC and True      # does not work with scaling or mac
+ROLLING = True          # enable rolling buffer training
 SCALE = not ROLLING and False    # only turns on if True and ROLLING is not on
 STACK_SIZE = 50000      # total dataset available to pull from
 NUM_SAMPLES = 12000     # initial number of pulls to use during training/val/testing
@@ -29,6 +29,7 @@ BASE_CHANNELS = 2 * NSIDE
 KERNEL_LIST = [63, 31, 15, 7]
 SAMPLE_FACTOR = 2
 BIAS = True
+LEARN_UP = True     # enables learnable upgrade layer
 
 # GENERAL ARCHITECTURE
 NUM_LEVELS = 4
