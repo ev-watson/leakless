@@ -47,12 +47,11 @@ def rho_metric(input_vector, output_vector):
         b_in[i] = hp.anafast(b_in_masked_map, lmax=lmax)
         b_out[i] = hp.anafast(b_out_masked_map, lmax=lmax)
 
-
         b_cross[i] = hp.anafast(b_in_masked_map, b_out_masked_map, lmax=lmax)
 
         b_cross_coeff[i] = b_cross[i] / np.sqrt(b_in[i] * b_out[i])
 
-    # take averages of all trials
+    # take averages of all trials for all ell modes
     cl_b_cross_coeff = np.mean(b_cross_coeff)
 
     return 1 - cl_b_cross_coeff

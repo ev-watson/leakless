@@ -70,7 +70,7 @@ if log_steps == 0:
 
 
 trainer = Trainer(
-    max_epochs=300,
+    max_epochs=200,
     callbacks=[
         ModelCheckpoint(
             dirpath=f'tlogs/{RUN_NAME}/checkpoints',

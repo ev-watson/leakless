@@ -26,15 +26,15 @@ activation_functions = {
     'hardswish': F.hardswish,
     'sigmoid': F.sigmoid,
     # 'swish': lambda x: x * F.sigmoid(x),
-    'sinu': lambda x: x + torch.sin(x) ** 2,
+    # 'sinu': lambda x: x + torch.sin(x) ** 2,
 }
 
 loss_functions = {
     'l1': F.l1_loss,
     'smooth_l1': F.smooth_l1_loss,
     'huber': F.huber_loss,
-    # 'mse': F.mse_loss,
-    'rmwe': rmwe_loss,
+    'mse': F.mse_loss,
+    # 'rmwe': rmwe_loss,
     # 'zero-one': zero_one_approximation_loss,
 }
 
@@ -124,12 +124,11 @@ def objective(trial):
     params = {}
     loss_params = {}
 
-    max_levels = 0
+    max_levels = -1
     neff = config.NSIDE_EFF
     while neff != 1:
         neff = neff // 2
         max_levels += 1
-    max_levels -= 1
 
     # TRAINING
     params['lr'] = trial.suggest_float('lr', 1e-6, 1e0)
@@ -204,7 +203,7 @@ def objective(trial):
         strategy='ddp' if not config.MAC else 'auto',
         sync_batchnorm=True,
         benchmark=True,
-        logger=TensorBoardLogger('hopt', name=f'unet_logs'),
+        logger=TensorBoardLogger('hopt', name=f'lowell'),
         log_every_n_steps=log_steps,
     )
 
@@ -234,7 +233,7 @@ sampler = optuna.samplers.TPESampler(
     seed=seed,
 )
 
-study_name = f"unet_study"
+study_name = f"lowell"
 storage_name = f"sqlite:///{study_name}.db"
 study = optuna.create_study(direction='minimize',
                             storage=storage_name,
