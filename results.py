@@ -20,8 +20,12 @@ args = parser.parse_args()
 
 os.makedirs('results', exist_ok=True)
 os.makedirs('results/figures', exist_ok=True)
+outstream = 'results/output.txt'
 
-# The defaults give one massive neutrino and helium set using BBN consistency
+with open(outstream, 'w') as f:
+    # splits the str by the last slash and chops off the ".ckpt" to get the name
+    print(f"MODEL CKPT NAME: {str(args.ckpt_path).rsplit('/', 1)[-1][:-5]}", file=f)
+
 params = {
     'H0': (67.66, 0.42),
     'ombh2': (0.02242, 0.00014),
@@ -60,7 +64,7 @@ analysis_dict = model_analysis(model=model,
                                nside=nside,
                                lmax=lmax,
                                mask=low_mask,
-                               outstream='results/output.txt')
+                               outstream=outstream)
 
 cl_e_in = analysis_dict['e_in']
 cl_b_in = analysis_dict['b_in']
@@ -111,5 +115,6 @@ plt.figure(figsize=(6, 6))
 plt.errorbar(np.arange(lmax + 1), cl_b_cross_coeff, yerr=cl_b_cross_coeff_std,
              label=rf'$\bar{{\rho_B}}\approx{np.mean(cl_b_cross_coeff):.3g}\pm{np.mean(cl_b_cross_coeff_std):.3g}$', fmt='o')
 plt.xlim(2, lmax)
+plt.xscale('log')
 plt.legend()
 plt.savefig('results/figures/rho_plot.png')

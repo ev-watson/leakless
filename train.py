@@ -19,14 +19,14 @@ torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_
 RUN_NAME = "lowell"
 
 params = {
-    'lr': 3e-3,
+    'lr': 1e-3,
     'base_channels': 2*config.NSIDE,
     'sample_factor': config.SAMPLE_FACTOR,
-    'num_levels': 3,
-    'kernel_list': [31, 15, 7],
+    'num_levels': 4,
+    'kernel_list': [15, 7, 3, 1],
     'conv_block_layers': 1,
     'activation': nn.ReLU,
-    'learnable_upgrade': True,
+    'learnable_upgrade': False,
     'drop_rate': 0.35,
     'loss': F.mse_loss,
     # 'loss_kwargs': {

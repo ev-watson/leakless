@@ -3,20 +3,20 @@ import random
 import camb
 import healpy as hp
 import numpy as np
+from pymaster import mask_apodization
 from tqdm import tqdm
 
 import config
 from utils import sample_normal, print_block, alm_len_from_lmax
 
 
-def generate_stack(seed, cls, nside, lmax, mask):
+def generate_stack(cls, nside, lmax, mask):
     """
     Generate data stack for CNN model
 
     orders columns as
     [E_partial.real, E_partial.imag, B_partial.real, B_partial.imag, E_full.real, E_full.imag, B_full.real, B_full.imag]
 
-    :param seed: int, seed for stack
     :param cls: list, list of angular power spectra in order [TT, EE, BB, TE]
     :param nside: int, resolution of map
     :param lmax: int, max ell mode
@@ -24,7 +24,7 @@ def generate_stack(seed, cls, nside, lmax, mask):
     :return: shape [8, N] np.ndarray
     """
     # seed before synfast call
-    np.random.seed(seed)
+    np.random.default_rng()
 
     # full maps
     tqu = hp.synfast(cls.T, nside=nside, new=True)
@@ -64,7 +64,9 @@ def main():
         'H0': (67.66, 0.42),
         'ombh2': (0.02242, 0.00014),
         'omch2': (0.11933, 0.00091),
-        'tau': (0.0561, 0.0071),
+        'tau': (0.0583, 0.0062),
+        'Alens': (1.061, 0.05),
+        'r': 0.036,
         'As': (2.105e-09, 3.000e-11),
         'ns': (0.9665, 0.0038),
         'mnu': 0.06,
@@ -85,12 +87,12 @@ def main():
     # prepare mask
     mask = hp.read_map(config.MASK_FILE, field=1)
     low_mask = hp.ud_grade(mask, nside_out=nside, dtype=np.int32)
+    apo_mask = mask_apodization(low_mask, aposize=config.MASK_APOSCALE, apotype=config.MASK_APOTYPE)
 
     # ensures unique seeds
-    seeds = random.sample(range(2 ** 32 - 1), k=n_samples)
     stacks = np.empty((n_samples, 8, alm_len_from_lmax(lmax)), dtype=np.float64)
-    for i, seed in enumerate(tqdm(seeds, desc="Generating stacks", mininterval=10)):
-        stacks[i] = generate_stack(seed, lensedCL, nside=nside, lmax=lmax, mask=low_mask)
+    for i in tqdm(range(n_samples), desc="Generating stacks", mininterval=10):
+        stacks[i] = generate_stack(lensedCL, nside=nside, lmax=lmax, mask=apo_mask)
 
     # save file
     np.save("stacks.npy", stacks)

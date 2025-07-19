@@ -15,10 +15,12 @@ ROLLING = True          # enable rolling buffer training
 SCALE = not ROLLING and False    # only turns on if True and ROLLING is not on
 STACK_SIZE = 20000      # total dataset available to pull from
 NUM_SAMPLES = 12000     # initial number of pulls to use during training/val/testing
-REPLACE_FRAC = 0.15     # percent of existing training data to replace with newly generated data (0.1 means 10% replaced)
+REPLACE_FRAC = 0.05     # percent of existing training data to replace with newly generated data (0.1 means 10% replaced)
+MASK_APOSCALE = 10      # apodization scale for mask
+MASK_APOTYPE = 'C2'     # nmt apotype
 
 # DATA HANDLING
-BATCH_SIZE = 16
+BATCH_SIZE = 8
 NUM_WORKERS = 16
 PREFETCH_FACTOR = 4
 PIN_MEMORY = True
@@ -26,7 +28,7 @@ PIN_MEMORY = True
 # ENCODING/DECODING
 IN_CHANNELS = 4
 BASE_CHANNELS = 2 * NSIDE
-KERNEL_LIST = [63, 31, 15, 7]
+KERNEL_LIST = [15, 7, 3, 1]
 SAMPLE_FACTOR = 2
 BIAS = True
 LEARN_UP = True     # enables learnable upgrade layer

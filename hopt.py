@@ -102,6 +102,12 @@ loss_hyperparams = {
     },
 }
 
+kernel_list_generators = {
+    'odd_reverse': lambda n: list(reversed([1 + 2*i for i in range(n)])),
+    'odd_reverse_p1': lambda n: list(reversed([1 + 2*(i+1) for i in range(n)])),
+    'powers_of_two': lambda n: [int(config.NSIDE/2**(i+1)) - 1 for i in range(n)],
+}
+
 parser = argparse.ArgumentParser(description="Hyper-optimization")
 optimizer_choices = list(optimizer_functions.keys())
 parser.add_argument("--opt", "-o", type=str, default="adamw",
@@ -142,15 +148,8 @@ def objective(trial):
     # params['dropout_frequency'] = trial.suggest_int('dropout_frequency', 1, params['num_layers'])
     # params['sample_factor'] = trial.suggest_categorical('sample_factor', [2, 4])
 
-    # --kernel list generators--
-    # make kernel list count down in odd numbers to reach 1 based on num_levels
-    # params['kernel_list'] = list(reversed([1 + 2*i for i in range(params['num_levels'])]))
-
-    # make kernel list for counting down 1 below powers of 2 (offset by nlevels) based on nlevels
-    # params['kernel_list'] = list(reversed([2**(i+params['num_levels']) - 1 for i in range(params['num_levels'])]))
-
-    # make kernel list for counting down 1 below powers of 2 based on nside
-    params['kernel_list'] = [int(config.NSIDE/2**(i+1)) - 1 for i in range(params['num_levels'])]
+    params['kernel_list_generator'] = trial.suggest_categorical('kernel_list_generator', list(kernel_list_generators.keys()))
+    params['kernel_list'] = kernel_list_generators[params['kernel_list_generator']](params['num_levels'])
 
     # ALGORITHMS
     # ---activation---

@@ -145,7 +145,7 @@ def model_analysis(model, ntrials, nside, lmax, mask, outstream=sys.stdout):
 
     """
     # writes a text based illustration of the model to outstream
-    with open(outstream, 'w') as f:
+    with open(outstream, 'a') as f:
         print(model.hparams, file=f)
         print(model, file=f)
 
