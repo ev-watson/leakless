@@ -114,6 +114,7 @@ plt.savefig('results/figures/in_out_cross_plot.png')
 plt.figure(figsize=(6, 6))
 plt.errorbar(np.arange(lmax + 1), cl_b_cross_coeff, yerr=cl_b_cross_coeff_std,
              label=rf'$\bar{{\rho_B}}\approx{np.mean(cl_b_cross_coeff):.3g}\pm{np.mean(cl_b_cross_coeff_std):.3g}$', fmt='o')
+plt.plot([1]*(lmax + 1))
 plt.xlim(2, lmax)
 plt.xscale('log')
 plt.legend()

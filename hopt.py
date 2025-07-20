@@ -104,8 +104,11 @@ loss_hyperparams = {
 
 kernel_list_generators = {
     'odd_reverse': lambda n: list(reversed([1 + 2*i for i in range(n)])),
-    'odd_reverse_p1': lambda n: list(reversed([1 + 2*(i+1) for i in range(n)])),
+    'odd_reverse_plus1': lambda n: list(reversed([1 + 2*(i+1) for i in range(n)])),
     'powers_of_two': lambda n: [int(config.NSIDE/2**(i+1)) - 1 for i in range(n)],
+    'xeven_gap': lambda n: list(reversed([1 + k*(k+1) for k in range(n)])),
+    'positive_offset_xeven_gap': lambda n: list(reversed([1 + k*(k+1+2) for k in range(n)])),
+    'negative_offset_xeven_gap': lambda n: list(reversed([1 + k*(k+1-2) for k in range(n)])),
 }
 
 parser = argparse.ArgumentParser(description="Hyper-optimization")

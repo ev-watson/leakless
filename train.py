@@ -23,10 +23,10 @@ params = {
     'base_channels': 2*config.NSIDE,
     'sample_factor': config.SAMPLE_FACTOR,
     'num_levels': 4,
-    'kernel_list': [15, 7, 3, 1],
+    'kernel_list': [13, 7, 3, 1],
     'conv_block_layers': 1,
     'activation': nn.ReLU,
-    'learnable_upgrade': False,
+    'learnable_upgrade': True,
     'drop_rate': 0.35,
     'loss': F.mse_loss,
     # 'loss_kwargs': {
