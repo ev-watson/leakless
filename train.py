@@ -1,5 +1,5 @@
-import torch.nn.functional as F
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim
 from lightning.pytorch import Trainer, seed_everything
 from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor, TQDMProgressBar
@@ -8,7 +8,7 @@ from lightning.pytorch.loggers import TensorBoardLogger
 import config
 from data_construction import leaklessDataModule
 from models import Leakless
-from utils import GradientNormCallback, print_block, rmwe_loss, RollingBufferCallback
+from utils import GradientNormCallback, print_block, RollingBufferCallback
 
 seed = config.SEED if config.SEED else np.random.randint(1, 10000)
 print_block(f"SEED: {seed}")
@@ -20,11 +20,11 @@ RUN_NAME = "lowell"
 
 params = {
     'lr': 1e-3,
-    'base_channels': 2*config.NSIDE,
+    'base_channels': 2 * config.NSIDE,
     'sample_factor': config.SAMPLE_FACTOR,
     'num_levels': 4,
     'kernel_list': [13, 7, 3, 1],
-    'conv_block_layers': 1,
+    'conv_block_layers': 2,
     'activation': nn.ReLU,
     'learnable_upgrade': True,
     'drop_rate': 0.35,
@@ -64,10 +64,9 @@ model = Leakless(**params)
 # (training batches)/(4 gpus)/5 to log 5 times per epoch
 ngpus = 4
 freq = 5
-log_steps = int(0.8*config.NUM_SAMPLES/config.BATCH_SIZE/ngpus/freq)
+log_steps = int(0.8 * config.NUM_SAMPLES / config.BATCH_SIZE / ngpus / freq)
 if log_steps == 0:
     log_steps = 1
-
 
 trainer = Trainer(
     max_epochs=200,

@@ -17,8 +17,6 @@ module purge
 module load slurm
 module load cpu/0.15.4
 module load gcc/10.2.0
-module load openmpi/4.0.4
-module load gsl/2.5
 
 echo "Activating virtual environment..."
 source /home/ewatson/miniconda3/etc/profile.d/conda.sh || { echo "Failed to source conda shell"; exit 1; }
