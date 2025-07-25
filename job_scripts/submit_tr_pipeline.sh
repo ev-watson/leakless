@@ -23,4 +23,4 @@ fi
 echo "Will pass checkpoint file: $ckpt_path to run_results.sh"
 
 # Submit the results job with dependency and checkpoint path
-sbatch --dependency=afterok:"$main_jid" run_results.sh "$ckpt_path"
+sbatch --dependency=afterok:"$main_jid" run_results.sh --resolve-latest

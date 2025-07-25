@@ -22,6 +22,22 @@ os.makedirs('results', exist_ok=True)
 os.makedirs('results/figures', exist_ok=True)
 outstream = 'results/output.txt'
 
+# auto resolve ckpt
+if args.ckpt_path is None:
+    ckpt_dir = 'tlogs/lowell/checkpoints'
+    pattern = 'epoch*.ckpt'
+
+    # gathers checkpoint paths in a list then sorts it by reverse modification time (latest first)
+    candidates = sorted(
+        [os.path.join(ckpt_dir, f) for f in os.listdir(ckpt_dir) if f.startswith('epoch') and f.endswith('.ckpt')],
+        key=os.path.getmtime,
+        reverse=True
+    )
+    if not candidates:
+        raise FileNotFoundError(f"No checkpoint files found in {ckpt_dir} matching pattern '{pattern}'")
+    args.ckpt_path = candidates[0]
+    print(f"Auto-resolved checkpoint: {args.ckpt_path}")
+
 with open(outstream, 'w') as f:
     # splits the str by the last slash and chops off the ".ckpt" to get the name
     print(f"MODEL CKPT NAME: {str(args.ckpt_path).rsplit('/', 1)[-1][:-5]}", file=f)
