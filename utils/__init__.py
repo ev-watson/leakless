@@ -27,6 +27,7 @@ from .logging_utils import (
 )
 
 from .losses import (
+    SpectralBinLoss,
     rmwe_loss,
     zero_one_approximation_loss,
     calc_mae,

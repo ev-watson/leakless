@@ -8,7 +8,7 @@ from tqdm import tqdm
 import config
 from utils.harmonic_helpers import alm_len_from_lmax, nside_from_alm_len, lmax_from_alm_len, recombine
 from utils.logging_utils import print_block
-from utils.losses import calc_mae, calc_mape
+from utils.losses import calc_mae, calc_mape, SpectralBinLoss
 
 
 def rho_metric(input_vector, output_vector):
@@ -57,11 +57,11 @@ def rho_metric(input_vector, output_vector):
     return 1 - cl_b_cross_coeff
 
 
-def print_analysis(i, g, t, ntrials, suppress, err, verbose):
+def print_analysis(metric_obj, g, t, ntrials, suppress, err, verbose):
     """
     Helper function for random tests
     """
-    metric = torch.tensor(rho_metric(i, g))
+    metric = metric_obj(g, t)
     if not suppress:
         print_block(f"RANDOM INPUT TESTING TRIALS: {ntrials}", err=err)
         print_block(f"METRIC: {metric:.6g}", err=err)
@@ -123,7 +123,10 @@ def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, supp
     output_vector = pred_vals.cpu().numpy()
     target_vector = target_data.cpu().numpy()
 
-    metric = print_analysis(input_vector, output_vector, target_vector, ntrials, suppress, err, verbose)
+    output_vector = torch.from_numpy(output_vector).to(device=device, dtype=torch.get_default_dtype())
+    target_vector = torch.from_numpy(target_vector).to(device=device, dtype=torch.get_default_dtype())
+
+    metric = print_analysis(SpectralBinLoss(bands=config.BANDS), output_vector, target_vector, ntrials, suppress, err, verbose)
     if hopt:
         return metric
     else:

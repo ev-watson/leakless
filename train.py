@@ -20,7 +20,7 @@ RUN_NAME = "lowell"
 
 params = {
     'lr': 1e-3,
-    'base_channels': 2 * config.NSIDE,
+    'base_channels': config.BASE_CHANNELS,
     'sample_factor': config.SAMPLE_FACTOR,
     'num_levels': 4,
     'kernel_list': [13, 7, 3, 1],

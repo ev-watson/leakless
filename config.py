@@ -9,6 +9,7 @@ NSIDE = 32    # Project computation scales as O(NSIDE**2) right now
 NSIDE_EFF = 32  # cannot be more than NSIDE and cannot be less than 16Fa
 # CHANGING NSIDE MEANS RERUNNING DATA_INIT
 LMAX = 3 * NSIDE_EFF - 1
+BANDS = [(0, 9), (10, 19), (20, 39), (40, 65), (66, 96)]
 
 # DATA GENERATION
 ROLLING = True          # enable rolling buffer training

@@ -4,7 +4,7 @@ from lightning.pytorch import LightningModule
 from torch import nn
 
 import config
-from utils import alm_len_from_nside, print_block, PredictorMixin, make_module
+from utils import alm_len_from_nside, print_block, PredictorMixin, make_module, SpectralBinLoss
 
 torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_dtype(torch.float32)
 
@@ -237,6 +237,7 @@ class Leakless(SpectralUNet, PredictorMixin):
         self.lr = kwargs.get('lr', config.LEARNING_RATE)
         self.activation = kwargs.get('activation', nn.ReLU)
         self.loss = kwargs.get('loss', F.mse_loss)
+        self.val_loss = SpectralBinLoss(bands=config.BANDS)
         self.optimizer = kwargs.get('optimizer', torch.optim.NAdam)
         self.scheduler = kwargs.get('scheduler', torch.optim.lr_scheduler.ReduceLROnPlateau)
         self.loss_kwargs = {}
@@ -258,15 +259,15 @@ class Leakless(SpectralUNet, PredictorMixin):
     def validation_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self.forward(x)
-        loss = self.loss(y_hat, y.view_as(y_hat), **self.loss_kwargs)
+        loss = self.val_loss(y_hat, y.view_as(y_hat))
         self.log('val_loss', loss, sync_dist=True, prog_bar=True, logger=True, on_epoch=True, on_step=False)
         return loss
 
     def test_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self.forward(x)
-        loss = self.loss(y_hat, y.view_as(y_hat), **self.loss_kwargs)
-        self.log('test_loss', loss, sync_dist=True, prog_bar=True, logger=True)
+        loss = self.val_loss(y_hat, y.view_as(y_hat))
+        self.log('test_loss', loss, sync_dist=True, prog_bar=True, logger=True, on_epoch=True, on_step=False)
         return loss
 
     def configure_optimizers(self):

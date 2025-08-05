@@ -66,7 +66,7 @@ optimizer_hyperparams = {
     },
     'nadam': {
         **base_opt_kwargs,
-        'momentum_decay': {'type': 'float', 'low': 1e-6, 'high': 1e-1},
+        'momentum_decay': {'type': 'float', 'low': 1e-6, 'high': 5e-1},
         'decoupled_weight_decay': {'type': 'bool', 'default': True},
     },
     'radam': {
@@ -192,7 +192,7 @@ def objective(trial):
     print_err(f"Starting trial with parameters: {params}")
 
     trainer = Trainer(
-        max_epochs=50,
+        max_epochs=100,
         gradient_clip_val=params.get('gradient_clip_val', config.GRADIENT_CLIP_VAL),
         callbacks=[
             EarlyStopping(monitor='val_loss', patience=config.PATIENCE, mode='min'),
@@ -215,7 +215,7 @@ def objective(trial):
 
     # return trainer.callback_metrics['test_loss'].item()
 
-    rtrials = 3000
+    rtrials = 5000
     metric = leak_test(model, ntrials=rtrials, hopt=True, err=True)
     return metric.item()
 

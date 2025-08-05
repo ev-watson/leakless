@@ -27,12 +27,12 @@ conda activate leakless || { echo "Failed to activate virtual environment"; exit
 # :- checks if string is empty and if it is, substitute value after dash (in this case nothing)
 # :? checks if string is empty and if it is, prints error message after "?"
 if [[ "${1:-}" == "--resolve-latest" ]]; then
-    echo "Auto-resolving latest checkpoint at runtime..."
-    srun --unbuffered python results.py -n 5000 || { echo "Python script failed"; exit 1; }
+  echo "Auto-resolving latest checkpoint at runtime..."
+  srun --unbuffered python results.py -n 5000 || { echo "Python script failed"; exit 1; }
 else
-    CKPT=${1:?Usage: sbatch $0 <checkpoint.ckpt> or sbatch $0 --resolve-latest}
-    echo "Starting Python script with checkpoint '$CKPT'..."
-    srun --unbuffered python results.py -c "$CKPT" -n 5000 || { echo "Python script failed"; exit 1; }
+  CKPT=${1:?Usage: sbatch $0 <checkpoint.ckpt> or sbatch $0 --resolve-latest}
+  echo "Starting Python script with checkpoint '$CKPT'..."
+  srun --unbuffered python results.py -c "$CKPT" -n 5000 || { echo "Python script failed"; exit 1; }
 fi
 
 echo "Job completed."
