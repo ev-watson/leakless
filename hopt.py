@@ -215,7 +215,7 @@ def objective(trial):
 
     # return trainer.callback_metrics['test_loss'].item()
 
-    rtrials = 5000
+    rtrials = 2000
     metric = leak_test(model, ntrials=rtrials, hopt=True, err=True)
     return metric.item()
 

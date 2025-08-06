@@ -12,7 +12,7 @@ LMAX = 3 * NSIDE_EFF - 1
 BANDS = [(0, 9), (10, 19), (20, 39), (40, 65), (66, 96)]
 
 # DATA GENERATION
-ROLLING = True          # enable rolling buffer training
+ROLLING = False          # enable rolling buffer training
 SCALE = not ROLLING and False    # only turns on if True and ROLLING is not on
 STACK_SIZE = 20000      # total dataset available to pull from
 NUM_SAMPLES = 12000     # initial number of pulls to use during training/val/testing
