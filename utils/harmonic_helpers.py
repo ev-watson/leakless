@@ -46,10 +46,10 @@ def recombine(channel_tensor):
     :param channel_tensor: array-like, must be shape (4, npoints), channels must be in order: E.re, E.im, B.re, B.im
     :return: tuple of complex E and B alm arrays, each with shape (npoints,)
     """
-    e_r = channel_tensor[0]
-    e_i = channel_tensor[1]
-    b_r = channel_tensor[2]
-    b_i = channel_tensor[3]
+    e_r = channel_tensor[:, 0]
+    e_i = channel_tensor[:, 1]
+    b_r = channel_tensor[:, 2]
+    b_i = channel_tensor[:, 3]
 
     e_comb = e_r + 1j*e_i
     b_comb = b_r + 1j*b_i

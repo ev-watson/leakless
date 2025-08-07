@@ -15,7 +15,7 @@ torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_
 class leaklessDataset(Dataset):
     def __init__(self, features):
         super().__init__()
-        self.features = features  # [b, 2c, n], b is number of samples
+        self.features = features  # [b, n, 2f], b is number of samples
         self.input_slice = slice(None, config.IN_CHANNELS)
         self.target_slice = slice(config.IN_CHANNELS, None)
 
@@ -23,15 +23,15 @@ class leaklessDataset(Dataset):
         return self.features.shape[0]
 
     def __getitem__(self, idx):
-        x = self.features[idx, self.input_slice, :]
-        y = self.features[idx, self.target_slice, :]
+        x = self.features[idx, :, self.input_slice]
+        y = self.features[idx, :, self.target_slice]
         return x, y
 
 
 class indexedDataset(Dataset):
     def __init__(self, indices, datafile=config.DATA_FILE):
         super().__init__()
-        self._data = np.load(datafile, mmap_mode='r')  # [b, 2c, n], b is number of samples
+        self._data = np.load(datafile, mmap_mode='r')  # [b, n, 2f], b is number of samples
         self.indices = np.array(indices, dtype=np.int64)    # must be np array for indexing
         self.input_slice = slice(None, config.IN_CHANNELS)
         self.target_slice = slice(config.IN_CHANNELS, None)
@@ -46,8 +46,8 @@ class indexedDataset(Dataset):
 
     def __getitem__(self, idx):
         raw = torch.from_numpy(self._data[self.indices[idx]].astype(self.dtype, copy=False).copy())
-        x = raw[self.input_slice]
-        y = raw[self.target_slice]
+        x = raw[:, self.input_slice]
+        y = raw[:, self.target_slice]
         return x, y
 
 
@@ -90,7 +90,7 @@ class leaklessDataModule(LightningDataModule):
 
         else:
             # make memmap, dont read anything yet
-            data = np.load(config.DATA_FILE, mmap_mode='r')  # [B, F, N], B is number of sample
+            data = np.load(config.DATA_FILE, mmap_mode='r')  # [B, N, F], B is number of sample
 
             # only these rows get read into memory
             self.features = data[idxs]
@@ -102,9 +102,9 @@ class leaklessDataModule(LightningDataModule):
                 # scale input and targets separately
                 self.input_scaler = Scaler()
                 self.target_scaler = Scaler()
-                self.inputs = self.input_scaler.fit_transform(self.features[:, :config.IN_CHANNELS, :])  # [b, 4, n]
-                self.targets = self.target_scaler.fit_transform(self.features[:, config.IN_CHANNELS:, :])  # [b, 4, n]
-                self.features = np.concatenate((self.inputs, self.targets), axis=1)  # [b, 8, n]
+                self.inputs = self.input_scaler.fit_transform(self.features[..., config.IN_CHANNELS])  # [b, n, 4]
+                self.targets = self.target_scaler.fit_transform(self.features[..., config.IN_CHANNELS:])  # [b, n, 4]
+                self.features = np.concatenate((self.inputs, self.targets), axis=1)  # [b, n, 8]
 
                 if config.SCALER_FILE:
                     joblib.dump({

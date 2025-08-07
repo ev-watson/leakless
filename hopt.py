@@ -195,7 +195,7 @@ def objective(trial):
         max_epochs=100,
         gradient_clip_val=params.get('gradient_clip_val', config.GRADIENT_CLIP_VAL),
         callbacks=[
-            EarlyStopping(monitor='val_loss', patience=config.PATIENCE, mode='min'),
+            EarlyStopping(monitor='train_loss', patience=config.PATIENCE, mode='min'),
             GradientNormCallback(),
             TQDMProgressBar(refresh_rate=log_steps),
         ],
@@ -205,7 +205,7 @@ def objective(trial):
         strategy='ddp' if not config.MAC else 'auto',
         sync_batchnorm=True,
         benchmark=True,
-        logger=TensorBoardLogger('hopt', name=f'lowell'),
+        logger=TensorBoardLogger('hopt', name=config.RUN_NAME),
         log_every_n_steps=log_steps,
     )
 
@@ -235,7 +235,7 @@ sampler = optuna.samplers.TPESampler(
     seed=seed,
 )
 
-study_name = f"lowell"
+study_name = config.RUN_NAME
 storage_name = f"sqlite:///{study_name}.db"
 study = optuna.create_study(direction='minimize',
                             storage=storage_name,

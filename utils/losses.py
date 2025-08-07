@@ -43,7 +43,7 @@ class SpectralBinLoss(nn.Module):
         self.low_mask = hp.ud_grade(mask, nside_out=self.nside, dtype=np.int32)
 
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        device = x.device  # b, 4, n
+        device = x.device  # b, n, 4
         if config.SCALE:
             scalers = joblib.load(config.SCALER_FILE)
             target_scaler = scalers['target_scaler']

@@ -24,7 +24,7 @@ outstream = 'results/output.txt'
 
 # auto resolve ckpt
 if args.ckpt_path is None:
-    ckpt_dir = 'tlogs/lowell/checkpoints'
+    ckpt_dir = f'tlogs/{config.RUN_NAME}/checkpoints'
     pattern = 'epoch*.ckpt'
 
     # gathers checkpoint paths in a list then sorts it by reverse modification time (latest first)

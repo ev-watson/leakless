@@ -4,10 +4,31 @@ from lightning.pytorch import LightningModule
 from torch import nn
 
 import config
-from modules import ConvBlock, Degrade, Upgrade, LearnableUpgrade
+from modules import BiGRUBlock, ConvBlock, Degrade, Upgrade, LearnableUpgrade
 from utils import PredictorMixin, SpectralBinLoss
 
 torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_dtype(torch.float32)
+
+
+class HarmonicHRN(LightningModule):
+    def __init__(self, **kwargs):
+        super().__init__()
+        in_ch = kwargs.get("in_channels", config.IN_CHANNELS)
+        base_ch = kwargs.get("base_channels", config.BASE_CHANNELS)
+        nlevels = kwargs.get("num_levels", config.NUM_LEVELS)
+        drop_rate = kwargs.get("drop_rate", config.DROP_RATE)
+        activation = kwargs.get("activation", nn.ReLU)
+
+        self.gru = BiGRUBlock(input_dim=in_ch, hidden_dim=base_ch, num_layers=nlevels, dropout=drop_rate, activation=activation)
+
+        self.save_hyperparameters(kwargs)
+
+    def forward(self, x):
+        # x = (B, F=4, N)
+        # x = x.transpose(1, 2)  # (B, N, F)
+        x = self.gru(x)
+        # x = x.transpose(1, 2)   # B F N
+        return x
 
 
 class SpectralUNet(LightningModule):
@@ -117,7 +138,7 @@ class SpectralUNet(LightningModule):
         return x
 
 
-class Leakless(SpectralUNet, PredictorMixin):
+class Leakless(HarmonicHRN, PredictorMixin):
     """
     Lightning training wrapper for models.
 

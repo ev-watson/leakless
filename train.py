@@ -16,18 +16,14 @@ seed_everything(seed)
 
 torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_dtype(torch.float32)
 
-RUN_NAME = "lowell"
+RUN_NAME = config.RUN_NAME
 
 params = {
     'lr': 1e-3,
-    'base_channels': config.BASE_CHANNELS,
-    'sample_factor': config.SAMPLE_FACTOR,
-    'num_levels': 4,
-    'kernel_list': [13, 7, 3, 1],
-    'conv_block_layers': 2,
+    'base_channels': 8,
+    'num_levels': 1,
     'activation': nn.ReLU,
-    'learnable_upgrade': True,
-    'drop_rate': 0.35,
+    'drop_rate': 0.17,
     'loss': F.mse_loss,
     # 'loss_kwargs': {
     #     'beta': 1.575184625409794,
@@ -55,6 +51,43 @@ params = {
     },
 }
 
+# params = {
+#     'lr': 1e-3,
+#     'base_channels': config.BASE_CHANNELS,
+#     'sample_factor': config.SAMPLE_FACTOR,
+#     'num_levels': 4,
+#     'kernel_list': [13, 7, 3, 1],
+#     'conv_block_layers': 2,
+#     'activation': nn.ReLU,
+#     'learnable_upgrade': True,
+#     'drop_rate': 0.35,
+#     'loss': F.mse_loss,
+#     # 'loss_kwargs': {
+#     #     'beta': 1.575184625409794,
+#     # },
+#     'optimizer': torch.optim.NAdam,
+#     'optimizer_kwargs': {
+#         'betas': (0.9241000987227369, 0.9996730603074183),
+#         'eps': 1e-12,
+#         'weight_decay': 3.0464200451047e-08,
+#         'momentum_decay': 0.08245131333657932,
+#         'decoupled_weight_decay': True
+#     },
+#     # 'scheduler': optim.lr_scheduler.CyclicLR,
+#     # 'scheduler_kwargs': {
+#     #     'base_lr': 7e-4,
+#     #     'max_lr': .01,
+#     #     'step_size_up': 2000,
+#     #     'scale_fn': None,
+#     #     'mode': 'triangular',   # only used if 'scale_fn' is None
+#     #     'gamma': 1.0,   # only used if 'mode' = 'exp_range'
+#     # },
+#     'scheduler_kwargs': {
+#         'factor': 0.25,
+#         'patience': 4,
+#     },
+# }
+
 config.update_hparams(params)
 
 data_module = leaklessDataModule()
@@ -65,6 +98,7 @@ model = Leakless(**params)
 ngpus = 4
 freq = 5
 log_steps = int(0.8 * config.NUM_SAMPLES / config.BATCH_SIZE / ngpus / freq)
+log_steps = 1
 if log_steps == 0:
     log_steps = 1
 
