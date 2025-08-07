@@ -4,7 +4,7 @@ from lightning.pytorch import LightningModule
 from torch import nn
 
 import config
-from modules import BiGRUBlock, ConvBlock, Degrade, Upgrade, LearnableUpgrade
+from modules import BiGRUBlock
 from utils import PredictorMixin, SpectralBinLoss
 
 torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_dtype(torch.float32)
@@ -13,128 +13,19 @@ torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_
 class HarmonicHRN(LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
-        in_ch = kwargs.get("in_channels", config.IN_CHANNELS)
-        base_ch = kwargs.get("base_channels", config.BASE_CHANNELS)
+        input_dim = kwargs.get("input_dim", config.INPUT_DIM)
+        hidden_dim = kwargs.get("hidden_dim", config.HIDDEN_DIM)
         nlevels = kwargs.get("num_levels", config.NUM_LEVELS)
         drop_rate = kwargs.get("drop_rate", config.DROP_RATE)
         activation = kwargs.get("activation", nn.ReLU)
 
-        self.gru = BiGRUBlock(input_dim=in_ch, hidden_dim=base_ch, num_layers=nlevels, dropout=drop_rate, activation=activation)
+        self.gru = BiGRUBlock(input_dim=input_dim, hidden_dim=hidden_dim, num_layers=nlevels, dropout=drop_rate,
+                              activation=activation)
 
         self.save_hyperparameters(kwargs)
 
     def forward(self, x):
-        # x = (B, F=4, N)
-        # x = x.transpose(1, 2)  # (B, N, F)
         x = self.gru(x)
-        # x = x.transpose(1, 2)   # B F N
-        return x
-
-
-class SpectralUNet(LightningModule):
-    def __init__(self, **kwargs):
-        """
-        U-Net style branch for CMB alm arrays configurable version inspired by Guo-Jian Wang et al 2022 ApJS 260 13
-
-        Args:
-            nsides (int, optional): healpix NSIDE. Default config.NSIDE.
-            in_channels (int, optional): Number of input channels. Default config.IN_CHANNELS.
-            base_channels (int, optional): Channels in first encoding level. Default config.BASE_CHANNELS.
-            num_levels (int, optional): Depth of the encoder/decoder (number of levels). Default config.NUM_LEVELS.
-            kernel_list (List[int], optional): Kernel sizes for each encoder/decoder level. Default [config.KERNEL_SIZE] * num_levels.
-            activation (Callable[[], nn.Module], optional): Activation module class. Default nn.ReLU.
-            bias (bool, optional): Whether to include bias in convolutional layers. Default config.BIAS.
-            degradation_factor (int, optional): Downsampling upgrade_factor applied to NSIDE at each level. Default config.SAMPLE_FACTOR.
-        """
-        super().__init__()
-        nside_eff = kwargs.get("nside_eff", config.NSIDE_EFF)
-        in_ch = kwargs.get("in_channels", config.IN_CHANNELS)
-        base_ch = kwargs.get("base_channels", config.BASE_CHANNELS)
-        nlevels = kwargs.get("num_levels", config.NUM_LEVELS)
-        factor = kwargs.get("sample_factor", config.SAMPLE_FACTOR)
-        kernel_list = kwargs.get("kernel_list", config.KERNEL_LIST)
-        conv_block_levels = kwargs.get("conv_block_levels", config.N_CONV_LAYERS_IN_ONE_BLOCK)
-        drop_rate = kwargs.get("drop_rate", config.DROP_RATE)
-        activation = kwargs.get("activation", nn.ReLU)
-        bias = kwargs.get("bias", config.BIAS)
-        learnable_upgrade = kwargs.get("learnable_upgrade", config.LEARN_UP)
-
-        assert len(kernel_list) == nlevels, f"Wrong kernel list: {kernel_list}, for nlevels={nlevels}"
-
-        # encoder: convblock then degrade
-        self.encoders = nn.ModuleList()
-        channels = [in_ch] + [base_ch * (2 ** i) for i in range(nlevels)]
-        for i in range(nlevels):
-            lvl_nsides = nside_eff // (factor ** i)
-            self.encoders.append(nn.ModuleDict({
-                "conv": ConvBlock(
-                    in_ch=channels[i],
-                    out_ch=channels[i + 1],
-                    kernel_size=kernel_list[i],
-                    conv_block_levels=conv_block_levels,
-                    activation=activation,
-                    bias=bias,
-                ),
-                "degrade": Degrade(lvl_nsides, factor)
-            }))
-
-        # bottleneck at coarsest resolution
-        bot_ch = base_ch * (2 ** nlevels)
-        self.bottleneck = ConvBlock(
-            in_ch=channels[-1],
-            out_ch=bot_ch,
-            kernel_size=kernel_list[-1],
-            conv_block_levels=conv_block_levels,
-            activation=activation,
-            bias=bias,
-        )
-        self.dropout = nn.Dropout(p=drop_rate)
-
-        # decoder: upsample, concat skip, convblock
-        self.decoders = nn.ModuleList()
-        for i in range(nlevels - 1, -1, -1):
-            lvl_nsides = nside_eff // (factor ** (i + 1))
-            up_ch = bot_ch if i == nlevels - 1 else channels[i + 2]
-            self.decoders.append(nn.ModuleDict({
-                "upgrade": LearnableUpgrade(lvl_nsides, factor, up_ch) if learnable_upgrade else Upgrade(lvl_nsides, factor),
-                "conv": ConvBlock(
-                    in_ch=up_ch + channels[i + 1],
-                    out_ch=channels[i + 1],
-                    kernel_size=kernel_list[i],
-                    conv_block_levels=conv_block_levels,
-                    activation=activation,
-                    bias=bias
-                ),
-                # currently disabled
-                # 'drop': nn.Dropout(p=drop_rate) if i == nlevels - 1 else nn.Identity(),
-            }))
-
-        # final 1x1 conv to restore input channels
-        self.final = nn.Conv1d(base_ch, in_ch, kernel_size=1, bias=bias)
-
-        self.save_hyperparameters(kwargs)
-
-    def forward(self, x):
-        skips = []  # [B, C_in, N]
-        # encoding
-        for i, enc in enumerate(self.encoders):
-            x = enc["conv"](x)
-            skips.append(x)  # [B, BC*2**i, N/D**i]
-            x = enc["degrade"](x)  # [B, BC*2**i, N/D**(i+1)]
-
-        # bottleneck
-        x = self.bottleneck(x)  # [B, BC*2**L, N/D**L]
-        x = self.dropout(x)
-
-        # decoding
-        for idx, dec in enumerate(self.decoders):
-            skip = skips[-(idx + 1)]
-            x = dec["upgrade"](x)  # [B, BC*2**(L-i), N/D**(L-i-1)]
-            x = torch.cat([x, skip], dim=1)  # [B, BC*2**(L-i) + BC*2**(L-i-1), N/D**(L-i-1)]
-            x = dec["conv"](x)  # [B, BC*2**(L-i-1), N/D**(L-i-1)]
-            # x = dec['drop'](x)
-
-        x = self.final(x)
         return x
 
 

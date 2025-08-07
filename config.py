@@ -7,7 +7,7 @@ RUN_NAME = 'gru'
 
 # CHANGING NSIDE MEANS RERUNNING DATA_INIT
 NSIDE = 32    # Project computation scales as O(NSIDE**2) right now
-NSIDE_EFF = 32  # cannot be more than NSIDE and cannot be less than 16Fa
+NSIDE_EFF = 32  # cannot be more than NSIDE and cannot be less than 16
 # CHANGING NSIDE MEANS RERUNNING DATA_INIT
 LMAX = 3 * NSIDE_EFF - 1
 BANDS = [(0, 19), (20, 39), (40, 65), (66, 95)]
@@ -28,16 +28,11 @@ PREFETCH_FACTOR = 4
 PIN_MEMORY = True
 
 # ENCODING/DECODING
-IN_CHANNELS = 4
-BASE_CHANNELS = 2 * NSIDE
-KERNEL_LIST = [15, 7, 3, 1]
-SAMPLE_FACTOR = 2
-BIAS = True
-LEARN_UP = True     # enables learnable upgrade layer
+INPUT_DIM = 4
+HIDDEN_DIM = 8
 
 # GENERAL ARCHITECTURE
-NUM_LEVELS = 4
-N_CONV_LAYERS_IN_ONE_BLOCK = 1
+NUM_LEVELS = 1
 DROP_RATE = 0.35
 
 # TRAINING

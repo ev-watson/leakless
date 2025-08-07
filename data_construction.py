@@ -16,8 +16,8 @@ class leaklessDataset(Dataset):
     def __init__(self, features):
         super().__init__()
         self.features = features  # [b, n, 2f], b is number of samples
-        self.input_slice = slice(None, config.IN_CHANNELS)
-        self.target_slice = slice(config.IN_CHANNELS, None)
+        self.input_slice = slice(None, config.INPUT_DIM)
+        self.target_slice = slice(config.INPUT_DIM, None)
 
     def __len__(self):
         return self.features.shape[0]
@@ -33,8 +33,8 @@ class indexedDataset(Dataset):
         super().__init__()
         self._data = np.load(datafile, mmap_mode='r')  # [b, n, 2f], b is number of samples
         self.indices = np.array(indices, dtype=np.int64)    # must be np array for indexing
-        self.input_slice = slice(None, config.IN_CHANNELS)
-        self.target_slice = slice(config.IN_CHANNELS, None)
+        self.input_slice = slice(None, config.INPUT_DIM)
+        self.target_slice = slice(config.INPUT_DIM, None)
 
         if config.MAC:
             self.dtype = np.float32
@@ -52,14 +52,16 @@ class indexedDataset(Dataset):
 
 
 class rollingDataset(indexedDataset):
+    # inherent from indexedDataset to modify indices property
     def __init__(self, indices, datafile=config.DATA_FILE, replace_frac=config.REPLACE_FRAC):
         super().__init__(indices, datafile)
         self._data = np.load(datafile, mmap_mode='r')
-        self.input_slice = slice(None, config.IN_CHANNELS)
-        self.target_slice = slice(config.IN_CHANNELS, None)
+        self.input_slice = slice(None, config.INPUT_DIM)
+        self.target_slice = slice(config.INPUT_DIM, None)
         self.buffer_size = len(self.indices)
         self.replace_frac = replace_frac
 
+    # for torch callback
     def on_epoch_end(self):
         n_replace = int(self.replace_frac * self.buffer_size)
         old_idx = np.random.choice(self.buffer_size, size=n_replace, replace=False)
@@ -102,8 +104,8 @@ class leaklessDataModule(LightningDataModule):
                 # scale input and targets separately
                 self.input_scaler = Scaler()
                 self.target_scaler = Scaler()
-                self.inputs = self.input_scaler.fit_transform(self.features[..., config.IN_CHANNELS])  # [b, n, 4]
-                self.targets = self.target_scaler.fit_transform(self.features[..., config.IN_CHANNELS:])  # [b, n, 4]
+                self.inputs = self.input_scaler.fit_transform(self.features[..., config.INPUT_DIM])  # [b, n, 4]
+                self.targets = self.target_scaler.fit_transform(self.features[..., config.INPUT_DIM:])  # [b, n, 4]
                 self.features = np.concatenate((self.inputs, self.targets), axis=1)  # [b, n, 8]
 
                 if config.SCALER_FILE:

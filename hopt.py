@@ -20,6 +20,7 @@ seed = config.SEED if config.SEED else np.random.randint(1, 10000)
 
 activation_functions = {
     'relu': F.relu,
+    'leaky_relu': F.leaky_relu,
     'gelu': F.gelu,
     'tanh': F.tanh,
     'mish': F.mish,

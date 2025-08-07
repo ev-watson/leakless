@@ -21,7 +21,7 @@ def generate_stack(cls, nside, lmax, mask):
     :param nside: int, resolution of map
     :param lmax: int, max ell mode
     :param mask: array, binary mask to be applied to full sky map
-    :return: shape [8, N] np.ndarray
+    :return: shape [N, 8] np.ndarray
     """
     # seed before synfast call
     np.random.default_rng()
@@ -48,7 +48,7 @@ def generate_stack(cls, nside, lmax, mask):
     stack = np.stack([e_alm_guess.real, e_alm_guess.imag,
                       b_alm_guess.real, b_alm_guess.imag,
                       e_alm_true.real, e_alm_true.imag,
-                      b_alm_true.real, b_alm_true.imag,], axis=0)
+                      b_alm_true.real, b_alm_true.imag,], axis=-1)
 
     return stack
 
@@ -90,7 +90,7 @@ def main():
     apo_mask = mask_apodization(low_mask, aposize=config.MASK_APOSCALE, apotype=config.MASK_APOTYPE)
 
     # ensures unique seeds
-    stacks = np.empty((n_samples, 8, alm_len_from_lmax(lmax)), dtype=np.float64)
+    stacks = np.empty((n_samples, alm_len_from_lmax(lmax), 8), dtype=np.float64)
     for i in tqdm(range(n_samples), desc="Generating stacks", mininterval=10):
         stacks[i] = generate_stack(lensedCL, nside=nside, lmax=lmax, mask=apo_mask)
 

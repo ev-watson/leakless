@@ -91,13 +91,13 @@ def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, supp
         print_block("BEGINNING RANDOM BATCH TESTING", err=err)
 
     stack = np.load(config.DATA_FILE, mmap_mode='r')
-    input_slice = slice(None, config.IN_CHANNELS)
-    target_slice = slice(config.IN_CHANNELS, None)
+    input_slice = slice(None, config.INPUT_DIM)
+    target_slice = slice(config.INPUT_DIM, None)
     npoints = stack.shape[-1]
 
     idx = np.random.randint(len(stack), size=ntrials)
     sampled = np.array([stack[i] for i in idx])  # shape [ntrials, 8, npoints]
-    pred_vals = torch.empty((ntrials, config.IN_CHANNELS, npoints))
+    pred_vals = torch.empty((ntrials, config.INPUT_DIM, npoints))
 
     device = next(model.parameters()).device
     input_data = torch.from_numpy(sampled[:, input_slice, :]).to(device=device, dtype=torch.get_default_dtype())
