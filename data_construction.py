@@ -104,9 +104,9 @@ class leaklessDataModule(LightningDataModule):
                 # scale input and targets separately
                 self.input_scaler = Scaler()
                 self.target_scaler = Scaler()
-                self.inputs = self.input_scaler.fit_transform(self.features[..., config.INPUT_DIM])  # [b, n, 4]
+                self.inputs = self.input_scaler.fit_transform(self.features[..., :config.INPUT_DIM])  # [b, n, 4]
                 self.targets = self.target_scaler.fit_transform(self.features[..., config.INPUT_DIM:])  # [b, n, 4]
-                self.features = np.concatenate((self.inputs, self.targets), axis=1)  # [b, n, 8]
+                self.features = np.concatenate((self.inputs, self.targets), axis=-1)  # [b, n, 8]
 
                 if config.SCALER_FILE:
                     joblib.dump({

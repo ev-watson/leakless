@@ -57,13 +57,12 @@ data_module = leaklessDataModule()
 
 model = Leakless(**params)
 
-# # (training batches)/(4 gpus)/5 to log 5 times per epoch
-# ngpus = 4
-# freq = 5
-# log_steps = int(0.8 * config.NUM_SAMPLES / config.BATCH_SIZE / ngpus / freq)
-# if log_steps == 0:
-#     log_steps = 1
-log_steps = 1
+# (training batches)/(4 gpus)/(freq) to log 'freq' times per epoch
+ngpus = 4
+freq = 10
+log_steps = int(0.8 * config.NUM_SAMPLES / config.BATCH_SIZE / ngpus / freq)
+if log_steps == 0:
+    log_steps = 1
 
 trainer = Trainer(
     max_epochs=200,
@@ -88,6 +87,7 @@ trainer = Trainer(
     sync_batchnorm=True,
     logger=TensorBoardLogger('tlogs', name=f"{RUN_NAME}"),
     log_every_n_steps=log_steps,
+    profiler="advanced",
 )
 
 print_block("TRAINING...")
