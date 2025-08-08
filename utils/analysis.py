@@ -93,15 +93,15 @@ def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, supp
     stack = np.load(config.DATA_FILE, mmap_mode='r')
     input_slice = slice(None, config.INPUT_DIM)
     target_slice = slice(config.INPUT_DIM, None)
-    npoints = stack.shape[-1]
+    npoints = stack.shape[1]
 
     idx = np.random.randint(len(stack), size=ntrials)
-    sampled = np.array([stack[i] for i in idx])  # shape [ntrials, 8, npoints]
-    pred_vals = torch.empty((ntrials, config.INPUT_DIM, npoints))
+    sampled = np.array([stack[i] for i in idx])  # shape [ntrials, npoints, 8]
+    pred_vals = torch.empty((ntrials, npoints, config.INPUT_DIM))
 
     device = next(model.parameters()).device
-    input_data = torch.from_numpy(sampled[:, input_slice, :]).to(device=device, dtype=torch.get_default_dtype())
-    target_data = torch.from_numpy(sampled[:, target_slice, :]).to(device=device, dtype=torch.get_default_dtype())
+    input_data = torch.from_numpy(sampled[..., input_slice]).to(device=device, dtype=torch.get_default_dtype())
+    target_data = torch.from_numpy(sampled[..., target_slice]).to(device=device, dtype=torch.get_default_dtype())
     pred_vals = pred_vals.to(device)
 
     # Finds closest power of 2 that will make batch_size and num_batches as even as possible then multiplies by 2

@@ -4,6 +4,7 @@ import torch.optim
 from lightning.pytorch import Trainer, seed_everything
 from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor, TQDMProgressBar
 from lightning.pytorch.loggers import TensorBoardLogger
+from lightning.pytorch.profilers import PyTorchProfiler
 
 import config
 from data_construction import leaklessDataModule
@@ -20,10 +21,10 @@ RUN_NAME = config.RUN_NAME
 
 params = {
     'lr': 1e-3,
-    'hidden_dim': 32,
-    'num_levels': 1,
+    'hidden_dim': 64,
+    'num_levels': 2,
     'activation': nn.LeakyReLU,
-    'drop_rate': 0.35,
+    'drop_rate': 0.17,
     'loss': F.mse_loss,
     # 'loss_kwargs': {
     #     'beta': 1.575184625409794,
@@ -87,7 +88,11 @@ trainer = Trainer(
     sync_batchnorm=True,
     logger=TensorBoardLogger('tlogs', name=f"{RUN_NAME}"),
     log_every_n_steps=log_steps,
-    profiler="advanced",
+    profiler=PyTorchProfiler(
+        dirpath='tlogs/profiles',
+        filename="trace",
+        export_to_chrome=True,              # makes output usable by TensorBoard
+    ),
 )
 
 print_block("TRAINING...")
