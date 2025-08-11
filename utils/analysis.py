@@ -6,9 +6,9 @@ import torch
 from tqdm import tqdm
 
 import config
-from utils.harmonic_helpers import alm_len_from_lmax, nside_from_alm_len, lmax_from_alm_len, recombine
-from utils.logging_utils import print_block
-from utils.losses import calc_mae, calc_mape, SpectralBinLoss
+from .harmonic_helpers import alm_len_from_lmax, nside_from_alm_len, lmax_from_alm_len, recombine
+from .logging_utils import print_block
+from .losses import calc_mae, calc_mape, SpectralBinLoss
 
 
 def rho_metric(input_vector, output_vector):

@@ -26,3 +26,15 @@ def sample_normal(params, seed=None, best_fit=False):
         else:
             sampled[key] = val
     return sampled
+
+
+def slice_len(t):
+    """
+    quick helper function for determing length of array covered by slice indices
+    Args:
+        t: tuple from slice(slice).indices()
+
+    Returns:
+        int, length of gap between index 0 and index 1
+    """
+    return t[1] - t[0]

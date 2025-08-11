@@ -54,3 +54,33 @@ def recombine(channel_tensor):
     e_comb = e_r + 1j*e_i
     b_comb = b_r + 1j*b_i
     return e_comb, b_comb
+
+
+def alm_span_from_m_band(lmax: int, band: tuple[int, int]) -> tuple[int, int]:
+    """
+    From Healpy docs:
+    In HEALPix C++ and healpy, a_lm coefficients are stored ordered by m. I.e. if l_max
+    is 16, the first 16 elements are m=0,l=0..16, then the following 15 elements are
+    m=1,l=1..16 and so on until the last element, the 153th, is m=16,l=16
+
+    this function notes the size up to m is (m+1)(lmax+1) + m(m+1)/2 and uses this to compute
+    starting and ending indices of alm array to capture desired m band
+    Args:
+        lmax: int, max ell mode
+        band: tuple[int, int], tuple with first element mmin and second element mmax
+
+    Returns:
+        tuple[int, int], tuple of starting/ending indices of alm array to capture desired m band
+    """
+    mmin, mmax = band
+    if not (0 <= mmin <= mmax <= lmax+1):
+        raise ValueError("Require 0 <= mmin <= mmax <= lmax for healpy packed ordering.")
+
+    def S(m: int):
+        if m < 0: return 0
+        return int((m + 1) * (lmax + 1 - (m / 2)))
+
+    start = S(mmin - 1)
+    end = S(mmax)
+    return start, end
+

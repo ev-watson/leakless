@@ -15,10 +15,12 @@ from .harmonic_helpers import (
     nside_from_alm_len,
     lmax_from_alm_len,
     recombine,
+    alm_span_from_m_band
 )
 
 from .helpers import (
     sample_normal,
+    slice_len
 )
 
 from .logging_utils import (

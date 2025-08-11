@@ -7,7 +7,7 @@ import torch.nn as nn
 import joblib
 
 import config
-from utils.harmonic_helpers import alm_len_from_lmax, recombine
+from .harmonic_helpers import alm_len_from_lmax, recombine
 
 
 class SpectralBinLoss(nn.Module):
@@ -15,7 +15,8 @@ class SpectralBinLoss(nn.Module):
                  band_weights: Optional[List[float]] = None,
                  gamma: Optional[float] = 1.0,
                  lmax: Optional[int] = None,
-                 eps: Optional[float] = 1e-8):
+                 eps: Optional[float] = 1e-8,
+                 decay_sharpness: Optional[int] = 0.4):
         """
         weighted combination loss for binnined BB log-MSE and EB leakage penalty
 
@@ -26,12 +27,14 @@ class SpectralBinLoss(nn.Module):
             gamma : weight for EB leakage penalty, default 1.0
             lmax : maximum multipole, default None
             eps : small value to prevent log of zero, note in clamp call it uses eps**2, default 1e-8
+            decay_sharpness : decay sharpness of band weight decay from front, lower means less front weight, default 0.4
         """
         super().__init__()
         self.bands = bands
         if band_weights is None:
             priorities = np.arange(len(bands), 0, -1)
-            self.band_weights = np.exp(priorities) / np.sum(np.exp(priorities))
+            self.band_weights = np.exp(decay_sharpness * priorities)
+            self.band_weights /= self.band_weights.sum()
         else:
             self.band_weights = band_weights
         self.gamma = gamma
@@ -72,12 +75,13 @@ class SpectralBinLoss(nn.Module):
             b_targ[i] = hp.anafast(b_targ_masked_map, lmax=self.lmax)
 
         l2_bb_out = 0
-        for i, (l_min, l_max) in enumerate(self.bands):
-            b_o_band = b_out[:, l_min:l_max + 1].mean(axis=0)
-            b_t_band = b_targ[:, l_min:l_max + 1].mean(axis=0)
+        for i, (lmin, lmax) in enumerate(self.bands):
+            b_o_band = b_out[:, lmin:lmax]
+            b_t_band = b_targ[:, lmin:lmax]
 
-            l2_bb_out_metric = np.sum((b_o_band - b_t_band) ** 2) / (np.sum(b_t_band ** 2) + self.eps ** 2)
-            l2_bb_out += self.band_weights[i] * l2_bb_out_metric
+            l2_bb_out_metric = (np.sum((b_o_band - b_t_band) ** 2, axis=-1) /
+                                (np.sum(b_t_band ** 2, axis=-1) + self.eps ** 2))
+            l2_bb_out += self.band_weights[i] * l2_bb_out_metric.mean()
 
         return torch.tensor(l2_bb_out, device=device, dtype=torch.get_default_dtype())
 

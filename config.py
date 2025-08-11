@@ -3,14 +3,14 @@ from sys import platform
 # ENVIRONMENT
 SEED = 42
 MAC = platform == 'darwin'  # True if running on mac, False if anything else
-RUN_NAME = 'gru'
+RUN_NAME = 'herm_proto'
 
 # CHANGING NSIDE MEANS RERUNNING DATA_INIT
 NSIDE = 32    # Project computation scales as O(NSIDE**2) right now
 NSIDE_EFF = 32  # cannot be more than NSIDE and cannot be less than 16
 # CHANGING NSIDE MEANS RERUNNING DATA_INIT
 LMAX = 3 * NSIDE_EFF - 1
-BANDS = [(0, 19), (20, 39), (40, 65), (66, 95)]
+BANDS = [(0, 20), (20, 40), (40, 66), (66, LMAX + 1)]
 
 # DATA GENERATION
 ROLLING = False          # enable rolling buffer training
@@ -22,7 +22,7 @@ MASK_APOSCALE = 10      # apodization scale for mask
 MASK_APOTYPE = 'C2'     # nmt apotype
 
 # DATA HANDLING
-BATCH_SIZE = 8
+BATCH_SIZE = 32
 NUM_WORKERS = 16
 PREFETCH_FACTOR = 4
 PIN_MEMORY = True
@@ -32,7 +32,7 @@ INPUT_DIM = 4
 HIDDEN_DIM = 64
 
 # GENERAL ARCHITECTURE
-NUM_LEVELS = 1
+NUM_LEVELS = 2
 DROP_RATE = 0.35
 
 # TRAINING
@@ -42,6 +42,7 @@ ENABLE_EARLY_STOPPING = True
 PATIENCE = 7
 GRADIENT_CLIP_VAL = 0.5
 WEIGHT_DECAY = 7e-3
+CONTINUOUS = False   # resume from last.ckpt
 
 # AUX
 DATA_FILE = 'stacks.npy'

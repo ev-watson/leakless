@@ -1,3 +1,4 @@
+import os
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim
@@ -18,6 +19,10 @@ seed_everything(seed)
 torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_dtype(torch.float32)
 
 RUN_NAME = config.RUN_NAME
+ckpt_path = f'tlogs/{RUN_NAME}/checkpoints'
+last_path = ckpt_path + '/last.ckpt'
+if not config.CONTINUOUS and os.path.exists(last_path):
+    os.remove(last_path)
 
 params = {
     'lr': 1e-3,
@@ -65,11 +70,13 @@ log_steps = int(0.8 * config.NUM_SAMPLES / config.BATCH_SIZE / ngpus / freq)
 if log_steps == 0:
     log_steps = 1
 
+log_steps = 1
+
 trainer = Trainer(
     max_epochs=200,
     callbacks=[
         ModelCheckpoint(
-            dirpath=f'tlogs/{RUN_NAME}/checkpoints',
+            dirpath=ckpt_path,
             filename='{epoch}-{step}',
             monitor='val_loss',
             mode='min',
@@ -91,8 +98,7 @@ trainer = Trainer(
     profiler=PyTorchProfiler(
         dirpath='tlogs/profiles',
         filename="trace",
-        export_to_chrome=True,              # makes output usable by TensorBoard
-    ),
+    ) if not config.MAC else None,
 )
 
 print_block("TRAINING...")

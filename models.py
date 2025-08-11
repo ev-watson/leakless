@@ -4,13 +4,13 @@ from lightning.pytorch import LightningModule
 from torch import nn
 
 import config
-from modules import BiGRUBlock
-from utils import PredictorMixin, SpectralBinLoss
+from modules import HRM
+from utils import PredictorMixin, SpectralBinLoss, alm_span_from_m_band
 
 torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_dtype(torch.float32)
 
 
-class HarmonicHRN(LightningModule):
+class HarmonicHRM(LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
         input_dim = kwargs.get("input_dim", config.INPUT_DIM)
@@ -18,18 +18,31 @@ class HarmonicHRN(LightningModule):
         nlevels = kwargs.get("num_levels", config.NUM_LEVELS)
         drop_rate = kwargs.get("drop_rate", config.DROP_RATE)
         activation = kwargs.get("activation", nn.ReLU)
+        bands = kwargs.get("bands", config.BANDS)
+        nsteps_per_cycle = kwargs.get("nsteps_per_cycle", 3)
+        ncycles = kwargs.get("ncycles", 2)
 
-        self.gru = BiGRUBlock(input_dim=input_dim, hidden_dim=hidden_dim, num_layers=nlevels, dropout=drop_rate,
-                              activation=activation)
+        alm_bands = []
+        for band in bands:
+            alm_bands.append(alm_span_from_m_band(config.LMAX, band))
+
+        self.net = HRM(input_dim=input_dim,
+                       hidden_dim=hidden_dim,
+                       num_layers=nlevels,
+                       dropout=drop_rate,
+                       activation=activation,
+                       bands=alm_bands,
+                       nsteps_per_cycle=nsteps_per_cycle,
+                       ncycles=ncycles, )
 
         self.save_hyperparameters(kwargs)
 
     def forward(self, x):
-        x = self.gru(x)
+        x = self.net(x)
         return x
 
 
-class Leakless(HarmonicHRN, PredictorMixin):
+class Leakless(HarmonicHRM, PredictorMixin):
     """
     Lightning training wrapper for models.
 

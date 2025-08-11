@@ -4,7 +4,7 @@ import os
 import optuna
 import optuna.visualization as vis
 
-from utils.logging_utils import print_block
+from .logging_utils import print_block
 
 
 def clear_local_ckpt_files():
