@@ -80,11 +80,12 @@ class HRM(nn.Module):
         self.zH = torch.zeros((2 * self.num_layers, config.BATCH_SIZE, self.hidden_dim))
 
     def embed_hidden_state_for_band(self, x, band_idx):
+        # take last layer and turn into input shape to embed with input
         return x[-1].unsqueeze(1).expand(-1, self.band_lengths[band_idx], -1)
 
     def forward(self, x: torch.Tensor):
         b, n, f = x.shape
-        assert sum(self.band_lengths) == n, "Bands do not match npoints in input"
+        assert sum(self.band_lengths) == n, f"Sum of band lengths ({sum(self.band_lengths)}) do not match npoints ({n}) in input, "
 
         banded_input = [x[:, slice(*band), :].clone() for band in self.bands]  # (nbands, b, band_length, f)
 
@@ -95,7 +96,6 @@ class HRM(nn.Module):
             for H_step in range(self.N - 1):
                 for L_step in range(self.T - 1):
                     for i in range(self.nbands):
-                        # take last layer and turn into input shape to embed with input
                         zH_embed = self.embed_hidden_state_for_band(zH, i)
                         # pass embedded input along with low level hidden state
                         banded_input[i], zL_band[i] = self.band_grus[i](torch.cat((banded_input[i], zH_embed), dim=-1),

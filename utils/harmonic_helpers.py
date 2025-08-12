@@ -1,7 +1,5 @@
 import math
 
-import numpy as np
-
 
 def alm_len_from_lmax(lmax):
     """
@@ -28,7 +26,7 @@ def nside_from_alm_len(alm_len):
     :param alm_len: int, len of alm array
     :return: int, resolution of map
     """
-    return int((math.sqrt(8*alm_len+1)-1)//6)
+    return int((math.sqrt(8 * alm_len + 1) - 1) // 6)
 
 
 def lmax_from_alm_len(alm_len):
@@ -51,8 +49,8 @@ def recombine(channel_tensor):
     b_r = channel_tensor[:, 2]
     b_i = channel_tensor[:, 3]
 
-    e_comb = e_r + 1j*e_i
-    b_comb = b_r + 1j*b_i
+    e_comb = e_r + 1j * e_i
+    b_comb = b_r + 1j * b_i
     return e_comb, b_comb
 
 
@@ -73,14 +71,13 @@ def alm_span_from_m_band(lmax: int, band: tuple[int, int]) -> tuple[int, int]:
         tuple[int, int], tuple of starting/ending indices of alm array to capture desired m band
     """
     mmin, mmax = band
-    if not (0 <= mmin <= mmax <= lmax+1):
+    if not (0 <= mmin <= mmax <= lmax + 1):
         raise ValueError("Require 0 <= mmin <= mmax <= lmax for healpy packed ordering.")
 
     def S(m: int):
-        if m < 0: return 0
+        if m <= 0: return 0
         return int((m + 1) * (lmax + 1 - (m / 2)))
 
-    start = S(mmin - 1)
+    start = S(mmin)
     end = S(mmax)
     return start, end
-

@@ -3,7 +3,7 @@ from sys import platform
 # ENVIRONMENT
 SEED = 42
 MAC = platform == 'darwin'  # True if running on mac, False if anything else
-RUN_NAME = 'herm_proto'
+RUN_NAME = 'herm_noA'
 
 # CHANGING NSIDE MEANS RERUNNING DATA_INIT
 NSIDE = 32    # Project computation scales as O(NSIDE**2) right now
