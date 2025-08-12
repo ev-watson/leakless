@@ -90,14 +90,15 @@ def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, supp
     if not suppress:
         print_block("BEGINNING RANDOM BATCH TESTING", err=err)
 
+    neff = (ntrials // batch_size) * batch_size
     stack = np.load(config.DATA_FILE, mmap_mode='r')
     input_slice = slice(None, config.INPUT_DIM)
     target_slice = slice(config.INPUT_DIM, None)
     npoints = stack.shape[1]
 
-    idx = np.random.randint(len(stack), size=ntrials)
+    idx = np.random.randint(len(stack), size=neff)
     sampled = np.array([stack[i] for i in idx])  # shape [ntrials, npoints, 8]
-    pred_vals = torch.empty((ntrials, npoints, config.INPUT_DIM))
+    pred_vals = torch.empty((neff, npoints, config.INPUT_DIM))
 
     device = next(model.parameters()).device
     input_data = torch.from_numpy(sampled[..., input_slice]).to(device=device, dtype=torch.get_default_dtype())
@@ -107,12 +108,12 @@ def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, supp
     # Finds closest power of 2 that will make batch_size and num_batches as even as possible then multiplies by 2
     # batch_size = 2 ** (round(np.log2(np.sqrt(ntrials)))+1)
     batch_size = batch_size
-    num_batches = int(np.ceil(ntrials / batch_size))
+    num_batches = neff // batch_size
     if not suppress:
-        print_block(f"{ntrials} TRIALS, {num_batches} BATCHES of {batch_size} SIZE", err=err)
+        print_block(f"{neff} TRIALS, {num_batches} BATCHES of {batch_size} SIZE", err=err)
     for batch_num in range(num_batches):
         start_idx = batch_num * batch_size
-        end_idx = min(start_idx + batch_size, ntrials)
+        end_idx = min(start_idx + batch_size, neff)
         batch_input = input_data[start_idx:end_idx]
         pred_vals[start_idx:end_idx] = model.predict(batch_input)
 
@@ -126,7 +127,7 @@ def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, supp
     output_vector = torch.from_numpy(output_vector).to(device=device, dtype=torch.get_default_dtype())
     target_vector = torch.from_numpy(target_vector).to(device=device, dtype=torch.get_default_dtype())
 
-    metric = print_analysis(SpectralBinLoss(bands=config.BANDS), output_vector, target_vector, ntrials, suppress, err, verbose)
+    metric = print_analysis(SpectralBinLoss(bands=config.BANDS), output_vector, target_vector, neff, suppress, err, verbose)
     if hopt:
         return metric
     else:
