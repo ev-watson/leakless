@@ -121,6 +121,7 @@ class leaklessDataModule(LightningDataModule):
     def train_dataloader(self):
         return DataLoader(self.train_dataset,
                           batch_size=self.batch_size,
+                          drop_last=True,
                           shuffle=True,
                           num_workers=config.NUM_WORKERS,
                           pin_memory=config.PIN_MEMORY)
@@ -128,13 +129,15 @@ class leaklessDataModule(LightningDataModule):
     def val_dataloader(self):
         return DataLoader(self.val_dataset,
                           batch_size=self.batch_size,
+                          drop_last=True,
                           shuffle=False,
                           num_workers=config.NUM_WORKERS,
                           pin_memory=config.PIN_MEMORY)
 
     def test_dataloader(self):
         return DataLoader(self.test_dataset,
-                          batch_size=1,
+                          batch_size=self.batch_size,
+                          drop_last=True,
                           shuffle=False,
                           num_workers=config.NUM_WORKERS,
                           pin_memory=config.PIN_MEMORY)

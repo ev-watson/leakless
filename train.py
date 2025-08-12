@@ -70,8 +70,6 @@ log_steps = int(0.8 * config.NUM_SAMPLES / config.BATCH_SIZE / ngpus / freq)
 if log_steps == 0:
     log_steps = 1
 
-log_steps = 1
-
 trainer = Trainer(
     max_epochs=200,
     callbacks=[

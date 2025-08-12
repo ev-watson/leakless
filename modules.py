@@ -76,6 +76,8 @@ class HRM(nn.Module):
         self.high_level_gru = BiGRUBlock(hidden_dim, hidden_dim, num_layers, dropout, activation, batch_first=False,
                                          return_hidden=True)
 
+        self.embed_head = nn.Linear(hidden_dim, input_dim, bias=False)
+
         self.zL = torch.zeros((2 * self.num_layers, config.BATCH_SIZE, self.hidden_dim))
         self.zH = torch.zeros((2 * self.num_layers, config.BATCH_SIZE, self.hidden_dim))
 
@@ -85,7 +87,8 @@ class HRM(nn.Module):
 
     def forward(self, x: torch.Tensor):
         b, n, f = x.shape
-        assert sum(self.band_lengths) == n, f"Sum of band lengths ({sum(self.band_lengths)}) do not match npoints ({n}) in input, "
+        assert sum(
+            self.band_lengths) == n, f"Sum of band lengths ({sum(self.band_lengths)}) do not match npoints ({n}) in input, "
 
         banded_input = [x[:, slice(*band), :].clone() for band in self.bands]  # (nbands, b, band_length, f)
 
@@ -109,11 +112,14 @@ class HRM(nn.Module):
             zH_embed = self.embed_hidden_state_for_band(zH, i)
             banded_input[i], zL_band[i] = self.band_grus[i](torch.cat((banded_input[i], zH_embed), dim=-1), zL_band[i])
 
-        _, zL = self.low_level_gru(torch.stack(zL_band, dim=0).mean(dim=0) + zH, zL)  # combine low and high states
-        _, zH = self.high_level_gru(zL, zH)  # get high states like before
+        L_summary, zL = self.low_level_gru(torch.stack(zL_band, dim=0).mean(dim=0) + zH, zL)  # combine low and high states
+        H_summary, zH = self.high_level_gru(L_summary, zH)  # get high states like before
+
+        head_input = H_summary[-1].unsqueeze(1).expand(-1, n, -1)  # B, N, HD
+        x_embed = self.embed_head(head_input)  # B, N, F
+
+        x = torch.cat(banded_input, dim=1) + x_embed  # put back inputs and add embedding
 
         self.zL, self.zH = zL.detach(), zH.detach()  # detach and carry
-
-        x = torch.cat(banded_input, dim=1)  # replace inputs
 
         return x

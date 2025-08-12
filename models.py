@@ -81,12 +81,6 @@ class Leakless(HarmonicHRM, PredictorMixin):
         y_hat = self.forward(x)
         loss = self.loss(y_hat, y.view_as(y_hat), **self.loss_kwargs)
         self.log('train_loss', loss, sync_dist=True, prog_bar=True, logger=True, on_epoch=True, on_step=config.ON_STEP)
-        unused = []
-        for n, p in self.named_parameters():
-            if p.requires_grad and p.grad is None:
-                unused.append(n)
-        if unused:
-            print("UNUSED PARAMS:", unused[:20], "… count:", len(unused))
         return loss
 
     def validation_step(self, batch, batch_idx):
