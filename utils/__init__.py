@@ -15,7 +15,8 @@ from .harmonic_helpers import (
     nside_from_alm_len,
     lmax_from_alm_len,
     recombine,
-    alm_span_from_m_band
+    alm_span_from_m_band,
+    get_alm_span_from_m_bands
 )
 
 from .helpers import (
@@ -44,6 +45,11 @@ from .optuna_helpers import (
 )
 
 from .torch_utils import (
+    build_rope_cache,
+    rope_apply,
+    RMSNorm,
+    SwiGLU,
+    SDPAEncoderBlock,
     LambdaLayer,
     make_module,
     Scaler,

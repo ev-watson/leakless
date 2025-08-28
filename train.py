@@ -31,6 +31,8 @@ params = {
     'activation': nn.LeakyReLU,
     'drop_rate': 0.17,
     'loss': F.mse_loss,
+    'nsteps_per_cycle': 3,
+    'ncycles': 2,
     # 'loss_kwargs': {
     #     'beta': 1.575184625409794,
     # },

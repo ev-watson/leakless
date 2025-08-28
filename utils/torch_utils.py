@@ -1,16 +1,140 @@
-from typing import Optional, Union
+from typing import Union, Callable, List, Tuple, Optional
 
 import joblib
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.nn.attention import sdpa_kernel, SDPBackend
+import torch.nn.functional as F
 from lightning.pytorch.callbacks import Callback
 
 import config
 
+preferred = [
+    SDPBackend.FLASH_ATTENTION,         # fastest when available
+    SDPBackend.CUDNN_ATTENTION,         # PyTorch >= 2.5 adds cuDNN SDPA
+    SDPBackend.EFFICIENT_ATTENTION,     # xFormers-style
+    SDPBackend.MATH,                    # fallback
+]
+
+
+def build_rope_cache(max_len: int, dh: int, base: float = 10000.0, device=None, dtype=torch.float32):
+    assert dh % 2 == 0
+    idx = torch.arange(0, dh, 2, dtype=dtype, device=device)
+    inv_freq = base ** (-idx / dh)
+    pos = torch.arange(max_len, dtype=dtype, device=device)[:, None]
+    freqs = pos * inv_freq[None, :]
+    cos = torch.cos(freqs).repeat_interleave(2, dim=1)  # [N,dh]
+    sin = torch.sin(freqs).repeat_interleave(2, dim=1)
+    return cos, sin
+
+
+def rope_apply(q: torch.Tensor, k: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor, offset: int = 0):
+    # q,k: [B,H,N,dh]; cos/sin: [Nmax,dh]
+    B, H, N, dh = q.shape
+    cos = cos[offset:offset + N].to(device=q.device, dtype=q.dtype)[None, None, :, :]
+    sin = sin[offset:offset + N].to(device=q.device, dtype=q.dtype)[None, None, :, :]
+
+    def rot(x):
+        x_even = x[..., ::2]
+        x_odd = x[..., 1::2]
+        out = torch.empty_like(x)
+        out[..., ::2] = -x_odd
+        out[..., 1::2] = x_even
+        return out
+
+    return q * cos + rot(q) * sin, k * cos + rot(k) * sin
+
+
+class RMSNorm(nn.Module):
+    def __init__(self, dim: int, eps: float = 1e-8):
+        super().__init__()
+        self.eps = eps
+        self.weight = nn.Parameter(torch.ones(dim))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        s = x.pow(2).mean(dim=-1, keepdim=True)
+        x = x * torch.rsqrt(s + self.eps)
+        return x * self.weight
+
+
+class SwiGLU(nn.Module):
+    def __init__(self, dim: int, mult: float = 2.0, dropout: float = 0.0, bias: bool = False):
+        super().__init__()
+        inner = int(dim * mult)
+        self.wg = nn.Linear(dim, inner, bias=bias)
+        self.wu = nn.Linear(dim, inner, bias=bias)
+        self.wo = nn.Linear(inner, dim, bias=bias)
+        self.drop = nn.Dropout(dropout)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.drop(self.wo(F.silu(self.wg(x)) * self.wu(x)))
+
+
+class SDPAEncoderBlock(nn.Module):
+    def __init__(self, dim: int, heads: int = 8,
+                 attn_drop: float = 0.0, proj_drop: float = 0.0,
+                 mlp_ratio: float = 2.0, mlp_drop: float = 0.0,
+                 rope_base: float = 10000.0, causal: bool = False):
+        super().__init__()
+        assert dim % heads == 0 and (dim // heads) % 2 == 0
+        self.h = heads
+        self.dh = dim // heads
+        self.causal = causal
+
+        self.q = nn.Linear(dim, dim, bias=False)
+        self.k = nn.Linear(dim, dim, bias=False)
+        self.v = nn.Linear(dim, dim, bias=False)
+        self.o = nn.Linear(dim, dim, bias=False)
+
+        self.proj_drop = nn.Dropout(proj_drop)
+        self.attn_drop_p = attn_drop
+
+        self.norm1 = RMSNorm(dim)
+        self.norm2 = RMSNorm(dim)
+        self.mlp = SwiGLU(dim, mult=mlp_ratio, dropout=mlp_drop, bias=False)
+
+        self.rope_base = rope_base
+        self._rope_cache = None
+
+    def rope(self, n: int, device, dtype=torch.float32):
+        if self._rope_cache is None or self._rope_cache[0].size(0) < n:
+            self._rope_cache = build_rope_cache(n, self.dh, base=self.rope_base, device=device, dtype=dtype)
+        return self._rope_cache
+
+    def forward(self, x):
+        # x: [B,N,D]
+        B, N, D = x.shape
+
+        # Attention
+        q, k, v = self.q(x), self.k(x), self.v(x)
+        q = q.view(B, N, self.h, self.dh).transpose(1, 2)  # [B,H,N,dh]
+        k = k.view(B, N, self.h, self.dh).transpose(1, 2)
+        v = v.view(B, N, self.h, self.dh).transpose(1, 2)
+
+        # RoPE
+        cos, sin = self.rope(N, q.device, torch.float32)
+        q, k, v = q.to(torch.float32), k.to(torch.float32), v.to(torch.float32)
+        q, k = rope_apply(q, k, cos, sin)
+
+        with sdpa_kernel(preferred):
+            y = F.scaled_dot_product_attention(
+                q, k, v,
+                attn_mask=None,
+                dropout_p=self.attn_drop_p if self.training else 0.0,
+                is_causal=self.causal,
+            )
+
+        y = y.transpose(1, 2).contiguous().view(B, N, D).to(x.dtype)
+        y = self.proj_drop(self.o(y))
+        x = self.norm1(x + y)
+        x = self.norm2(x + self.mlp(x))
+        return x
+
 
 class LambdaLayer(nn.Module):
     """Wrap any Callable[[Tensor],Tensor] so it behaves like an nn.Module."""
+
     def __init__(self, fn):
         super().__init__()
         self.fn = fn

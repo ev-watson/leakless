@@ -4,8 +4,8 @@ from lightning.pytorch import LightningModule
 from torch import nn
 
 import config
-from modules import HRM
-from utils import PredictorMixin, SpectralBinLoss, alm_span_from_m_band
+from modules import HRM, BandedHRM
+from utils import PredictorMixin, SpectralBinLoss, get_alm_span_from_m_bands
 
 torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_dtype(torch.float32)
 
@@ -18,22 +18,28 @@ class HarmonicHRM(LightningModule):
         nlevels = kwargs.get("num_levels", config.NUM_LEVELS)
         drop_rate = kwargs.get("drop_rate", config.DROP_RATE)
         activation = kwargs.get("activation", nn.ReLU)
-        bands = kwargs.get("bands", config.BANDS)
+        # bands = kwargs.get("bands", config.BANDS)
         nsteps_per_cycle = kwargs.get("nsteps_per_cycle", 3)
         ncycles = kwargs.get("ncycles", 2)
 
-        alm_bands = []
-        for band in bands:
-            alm_bands.append(alm_span_from_m_band(config.LMAX, band))
+        # # FOR BANDED MODEL
+        # alm_spans = get_alm_span_from_m_bands(config.LMAX, bands)
+        # self.net = BandedHRM(input_dim=input_dim,
+        #                      hidden_dim=hidden_dim,
+        #                      num_layers=nlevels,
+        #                      dropout=drop_rate,
+        #                      activation=activation,
+        #                      bands=alm_bands,
+        #                      nsteps_per_cycle=nsteps_per_cycle,
+        #                      ncycles=ncycles, )
 
         self.net = HRM(input_dim=input_dim,
                        hidden_dim=hidden_dim,
                        num_layers=nlevels,
                        dropout=drop_rate,
                        activation=activation,
-                       bands=alm_bands,
                        nsteps_per_cycle=nsteps_per_cycle,
-                       ncycles=ncycles, )
+                       ncycles=ncycles,)
 
         self.save_hyperparameters(kwargs)
 

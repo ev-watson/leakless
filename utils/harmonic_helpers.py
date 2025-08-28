@@ -81,3 +81,10 @@ def alm_span_from_m_band(lmax: int, band: tuple[int, int]) -> tuple[int, int]:
     start = S(mmin)
     end = S(mmax)
     return start, end
+
+
+def get_alm_span_from_m_bands(lmax, m_bands):
+    alm_spans = []
+    for band in m_bands:
+        alm_spans.append(alm_span_from_m_band(lmax, band))
+    return alm_spans
