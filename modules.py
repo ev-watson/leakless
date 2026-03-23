@@ -152,10 +152,10 @@ class SwiGLU(nn.Module):
 # ──────────────────────────────────────────────────────────────────────
 
 SDPA_BACKENDS = [
-    SDPBackend.FLASH_ATTENTION,
-    SDPBackend.CUDNN_ATTENTION,
-    SDPBackend.EFFICIENT_ATTENTION,
-    SDPBackend.MATH,
+    SDPBackend.FLASH_ATTENTION,     # fastest when available
+    SDPBackend.CUDNN_ATTENTION,     # PyTorch >= 2.5 adds cuDNN SDPA
+    SDPBackend.EFFICIENT_ATTENTION, # xFormers-style
+    SDPBackend.MATH,                # fallback
 ]
 
 

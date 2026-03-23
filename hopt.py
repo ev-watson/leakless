@@ -19,11 +19,77 @@ from utils import (print_block, print_err, leak_test, GradientNormCallback,
 
 seed = config.SEED if config.SEED else np.random.randint(1, 10000)
 
+activation_functions = {
+    'relu': F.relu,
+    'leaky_relu': F.leaky_relu,
+    'gelu': F.gelu,
+    'tanh': F.tanh,
+    'mish': F.mish,
+    'hardswish': F.hardswish,
+    'sigmoid': F.sigmoid,
+    # 'swish': lambda x: x * F.sigmoid(x),
+    # 'sinu': lambda x: x + torch.sin(x) ** 2,
+}
+
 loss_functions = {
     'l1': F.l1_loss,
     'smooth_l1': F.smooth_l1_loss,
     'huber': F.huber_loss,
     'mse': F.mse_loss,
+    # 'rmwe': rmwe_loss,
+    # 'zero-one': zero_one_approximation_loss,
+}
+
+optimizer_functions = {
+    'adamw': torch.optim.AdamW,
+    'nadam': torch.optim.NAdam,
+    'radam': torch.optim.RAdam,
+    'sgd': torch.optim.SGD,
+    # 'adabound': optim.AdaBound,
+    # 'swats': optim.SWATS,
+    # 'lion': Lion,
+}
+
+base_opt_kwargs = {
+    'betas1': {'type': 'float', 'low': 0.9, 'high': 0.99},  # Log inherently included in sampler function in utils
+    'betas2': {'type': 'float', 'low': 0.99, 'high': 0.9999},
+    'eps': {'type': 'float', 'default': 1e-8},
+    'weight_decay': {'type': 'float', 'low': 1e-10, 'high': 1e-2, 'log': True},
+}
+
+optimizer_hyperparams = {
+    'adamw': {
+        **base_opt_kwargs,
+    },
+    'nadam': {
+        **base_opt_kwargs,
+        'momentum_decay': {'type': 'float', 'low': 1e-6, 'high': 5e-1},
+        'decoupled_weight_decay': {'type': 'bool', 'default': True},
+    },
+    'radam': {
+        **base_opt_kwargs,
+        'decoupled_weight_decay': {'type': 'bool', 'default': True},
+    },
+    'sgd': {
+        'momentum': {'type': 'float', 'low': 0.8, 'high': 0.99999},
+        'weight_decay': {'type': 'float', 'low': 1e-10, 'high': 1e-2, 'log': True},
+        'nesterov': {'type': 'bool', 'default': True},
+    },
+    # 'adabound': {
+    #     **base_opt_kwargs,
+    #     'final_lr': {'type': 'float', 'low': 1e-8, 'high': 1e-1},
+    #     'gamma': {'type': 'float', 'low': 1e-6, 'high': 1e-1},
+    #     'amsbound': {'type': 'bool'},
+    # },
+    # 'swats': {
+    #     **base_opt_kwargs,
+    #     'amsgrad': {'type': 'bool'},
+    #     'nesterov': {'type': 'bool'},
+    # },
+    # 'lion': {
+    #     **{k: v for k, v in base_opt_kwargs.items() if k != 'eps'},
+    #     'decoupled_weight_decay': {'type': 'bool'},
+    # },
 }
 
 loss_hyperparams = {
@@ -33,7 +99,17 @@ loss_hyperparams = {
     'smooth_l1': {
         'beta': {'type': 'float', 'low': 1e-1, 'high': 2e0}
     },
+    # 'zero-one': {
+    #     'sigma': {'type': 'float', 'low': .1, 'high': 1.},
+    # },
 }
+
+parser = argparse.ArgumentParser(description="Hyper-optimization")
+optimizer_choices = list(optimizer_functions.keys())
+parser.add_argument("--opt", "-o", type=str, default="adamw",
+                    choices=optimizer_choices,
+                    help=f"Optimizer function. Defaults to adamw")
+args = parser.parse_args()
 
 
 def objective(trial):
@@ -74,14 +150,8 @@ def objective(trial):
     params['loss_kwargs'] = loss_params
 
     # ── Optimizer ─────────────────────────────────────────────────
-    params['optimizer'] = torch.optim.AdamW
-    params['optimizer_kwargs'] = {
-        'betas': (
-            trial.suggest_float('beta1', 0.85, 0.99),
-            trial.suggest_float('beta2', 0.99, 0.9999),
-        ),
-        'eps': 1e-8,
-    }
+    params['optimizer'] = optimizer_functions[args.opt]
+    params['optimizer_kwargs'] = sample_hyperparams(trial, optimizer_hyperparams[args.opt])
 
     # ── Scheduler ─────────────────────────────────────────────────
     params['scheduler_kwargs'] = {
@@ -94,6 +164,7 @@ def objective(trial):
     data_module = leaklessDataModule()
     model = Leakless(**params)
 
+    # training batches / gpus / freq to log freq times per epoch
     ngpus = 4 if not config.MAC else 1
     freq = 5
     log_steps = max(1, int(0.8 * config.NUM_SAMPLES / config.BATCH_SIZE / ngpus / freq))
@@ -120,14 +191,26 @@ def objective(trial):
 
     trainer.fit(model, datamodule=data_module)
 
+    # trainer.test(model, datamodule=data_module)
+    # return trainer.callback_metrics['test_loss'].item()
+
     rtrials = 2000
     metric = leak_test(model, ntrials=rtrials, hopt=True, err=True)
     return metric.item()
 
 
+# multi-objective sampler
+# sampler = optuna.samplers.NSGAIISampler(
+#     population_size=100,    # 50
+#     crossover_prob=0.915,   # 0.9
+#     swapping_prob=0.51,     # 0.5
+#     mutation_prob=0.08,     # None
+# )
+
+# single-objective sampler
 sampler = optuna.samplers.TPESampler(
-    n_startup_trials=10,
-    n_ei_candidates=24,
+    n_startup_trials=10,  # 10
+    n_ei_candidates=24,   # 24
     seed=seed,
 )
 

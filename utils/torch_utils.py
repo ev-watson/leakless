@@ -23,10 +23,13 @@ class LambdaLayer(nn.Module):
 
 def make_module(act):
     """Convert a class, instance, or callable into an nn.Module."""
+    # already an instance?
     if isinstance(act, nn.Module):
         return act
+    # a Module *class*?
     if isinstance(act, type) and issubclass(act, nn.Module):
         return act()
+    # any other callable → wrap in LambdaLayer
     if callable(act):
         return LambdaLayer(act)
     raise ValueError(f"Cannot make a module out of {act!r}")
@@ -66,8 +69,8 @@ class Scaler:
     def transform(self, data: torch.Tensor) -> torch.Tensor:
         if not self.is_fitted:
             raise RuntimeError("Scaler has not been fitted yet.")
-        mean = self.mean_.to(device=data.device, dtype=data.dtype)
-        std = self.std_.to(device=data.device, dtype=data.dtype)
+        mean = self.mean_.to(device=data.device, dtype=data.dtype)  # type: ignore
+        std = self.std_.to(device=data.device, dtype=data.dtype)  # type: ignore
         return (data - mean) / std
 
     def fit_transform(self, data: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
@@ -79,8 +82,8 @@ class Scaler:
     def inverse_transform(self, data: torch.Tensor) -> torch.Tensor:
         if not self.is_fitted:
             raise RuntimeError("Scaler has not been fitted yet.")
-        mean = self.mean_.to(device=data.device, dtype=data.dtype)
-        std = self.std_.to(device=data.device, dtype=data.dtype)
+        mean = self.mean_.to(device=data.device, dtype=data.dtype)  # type: ignore
+        std = self.std_.to(device=data.device, dtype=data.dtype)  # type: ignore
         return data * std + mean
 
 

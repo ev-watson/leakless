@@ -43,6 +43,15 @@ params = {
         'betas': (0.9, 0.999),
         'eps': 1e-8,
     },
+    # 'scheduler': torch.optim.lr_scheduler.CyclicLR,
+    # 'scheduler_kwargs': {
+    #     'base_lr': 7e-4,
+    #     'max_lr': .01,
+    #     'step_size_up': 2000,
+    #     'scale_fn': None,
+    #     'mode': 'triangular',   # only used if 'scale_fn' is None
+    #     'gamma': 1.0,           # only used if 'mode' = 'exp_range'
+    # },
     'scheduler_kwargs': {
         'factor': 0.25,
         'patience': 4,

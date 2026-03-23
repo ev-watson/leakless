@@ -13,12 +13,12 @@ LMAX = 3 * NSIDE_EFF - 1           # maximum multipole
 
 # ── Data generation ───────────────────────────────────────────────────
 ROLLING = False
-SCALE = not ROLLING and False
+SCALE = not ROLLING and False    # only turns on if True and ROLLING is not on
 STACK_SIZE = 20000
 NUM_SAMPLES = 12000
-REPLACE_FRAC = 0.05
-MASK_APOSCALE = 10
-MASK_APOTYPE = 'C2'
+REPLACE_FRAC = 0.05     # percent of existing training data to replace with newly generated data (0.1 means 10% replaced)
+MASK_APOSCALE = 10      # apodization scale for mask
+MASK_APOTYPE = 'C2'     # nmt apotype
 
 # ── Data handling ─────────────────────────────────────────────────────
 BATCH_SIZE = 32
@@ -46,11 +46,11 @@ ENABLE_EARLY_STOPPING = True
 PATIENCE = 7
 GRADIENT_CLIP_VAL = 1.0
 WEIGHT_DECAY = 0.01
-CONTINUOUS = False
+CONTINUOUS = False      # resume from last.ckpt
 
 # ── Auxiliary files ───────────────────────────────────────────────────
 DATA_FILE = 'stacks.npy'
-SCALER_FILE = 'scaler.pkl'
+SCALER_FILE = 'scaler.pkl'      # None to turn off saving
 MASK_FILE = "binary_GAL_mask_N1024.fits"
 
 # ── Logging ───────────────────────────────────────────────────────────
