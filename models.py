@@ -1,113 +1,144 @@
+"""
+Lightning training wrapper with deep supervision for HRM.
+
+Deep supervision (HRM paper Sec. 2): multiple forward passes ("segments"),
+each computing loss and backpropagating.  The carry is detached between
+segments, creating a 1-step approximation of the recursive deep supervision
+gradient.  This provides more frequent feedback to the H-module and acts
+as a regularization mechanism.
+"""
+import torch
 import torch.nn.functional as F
-import torch.optim
 from lightning.pytorch import LightningModule
-from torch import nn
 
 import config
-from modules import HRM, BandedHRM
-from utils import PredictorMixin, SpectralBinLoss, get_alm_span_from_m_bands
-
-torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_dtype(torch.float32)
+from modules import HRM, HRMCarry
 
 
-class HarmonicHRM(LightningModule):
+class Leakless(LightningModule):
+    """CMB E->B leakage cleaner using Hierarchical Reasoning Model.
+
+    Each training step runs *n_supervision* forward segments.  All segment
+    losses are accumulated and backpropagated together (a practical
+    approximation of the per-segment updates described in the paper that
+    integrates cleanly with Lightning and gradient clipping).
+
+    At inference, predict() runs all supervision segments and returns the
+    output from the final segment.
+    """
+
     def __init__(self, **kwargs):
         super().__init__()
-        input_dim = kwargs.get("input_dim", config.INPUT_DIM)
-        hidden_dim = kwargs.get("hidden_dim", config.HIDDEN_DIM)
-        nlevels = kwargs.get("num_levels", config.NUM_LEVELS)
-        drop_rate = kwargs.get("drop_rate", config.DROP_RATE)
-        activation = kwargs.get("activation", nn.ReLU)
-        # bands = kwargs.get("bands", config.BANDS)
-        nsteps_per_cycle = kwargs.get("nsteps_per_cycle", 3)
-        ncycles = kwargs.get("ncycles", 2)
 
-        # # FOR BANDED MODEL
-        # alm_spans = get_alm_span_from_m_bands(config.LMAX, bands)
-        # self.net = BandedHRM(input_dim=input_dim,
-        #                      hidden_dim=hidden_dim,
-        #                      num_layers=nlevels,
-        #                      dropout=drop_rate,
-        #                      activation=activation,
-        #                      bands=alm_bands,
-        #                      nsteps_per_cycle=nsteps_per_cycle,
-        #                      ncycles=ncycles, )
+        # Training config
+        self.lr = kwargs.get('lr', config.LEARNING_RATE)
+        self.weight_decay = kwargs.get('weight_decay', config.WEIGHT_DECAY)
+        self.n_supervision = kwargs.get('n_supervision', config.N_SUPERVISION)
+        self.loss_fn = kwargs.get('loss', F.mse_loss)
+        self.loss_kwargs = kwargs.get('loss_kwargs', {})
+        self.scheduler_kwargs = kwargs.get('scheduler_kwargs', {
+            'factor': 0.25, 'patience': 4
+        })
+        self.optimizer_cls = kwargs.get('optimizer', torch.optim.AdamW)
+        self.optimizer_kwargs = kwargs.get('optimizer_kwargs', {})
 
-        self.net = HRM(input_dim=input_dim,
-                       hidden_dim=hidden_dim,
-                       num_layers=nlevels,
-                       dropout=drop_rate,
-                       activation=activation,
-                       nsteps_per_cycle=nsteps_per_cycle,
-                       ncycles=ncycles,)
+        # HRM core
+        self.net = HRM(
+            input_dim=kwargs.get('input_dim', config.INPUT_DIM),
+            hidden_size=kwargs.get('hidden_size', config.HIDDEN_SIZE),
+            H_layers=kwargs.get('H_layers', config.H_LAYERS),
+            L_layers=kwargs.get('L_layers', config.L_LAYERS),
+            H_cycles=kwargs.get('H_cycles', config.H_CYCLES),
+            L_cycles=kwargs.get('L_cycles', config.L_CYCLES),
+            num_heads=kwargs.get('num_heads', config.NUM_HEADS),
+            expansion=kwargs.get('expansion', config.EXPANSION),
+            max_seq_len=kwargs.get('max_seq_len', config.MAX_SEQ_LEN),
+            rope_theta=kwargs.get('rope_theta', config.ROPE_THETA),
+        )
 
         self.save_hyperparameters(kwargs)
 
-    def forward(self, x):
-        x = self.net(x)
-        return x
+    # ── forward ───────────────────────────────────────────────────────
 
+    def forward(self, x: torch.Tensor, carry=None):
+        return self.net(x, carry)
 
-class Leakless(HarmonicHRM, PredictorMixin):
-    """
-    Lightning training wrapper for models.
+    # ── deep supervision steps ────────────────────────────────────────
 
-    Args:
-        lr (float, optional): Learning rate. Default config.LEARNING_RATE.
-        activation (Callable[[Tensor], Tensor], optional): Activation function. Default nn.ReLU.
-        loss (Callable, optional): Loss function. Default torch.nn.functional.mse_loss.
-        optimizer (Type[torch.optim.Optimizer], optional): Optimizer class. Default torch.optim.NAdam.
-        scheduler (Type[torch.optim.lr_scheduler._LRScheduler], optional): LR scheduler class.
-            Default torch.optim.lr_scheduler.ReduceLROnPlateau.
-        loss_kwargs (dict, optional): Additional loss kwargs. Default {}.
-        optimizer_kwargs (dict, optional): Additional optimizer kwargs. Default {}.
-        scheduler_kwargs (dict, optional): Additional scheduler kwargs. Default {}.
-        All other kwargs are passed to parent class.
-    """
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.lr = kwargs.get('lr', config.LEARNING_RATE)
-        self.activation = kwargs.get('activation', nn.ReLU)
-        self.loss = kwargs.get('loss', F.mse_loss)
-        self.val_loss = SpectralBinLoss(bands=config.BANDS)
-        self.optimizer = kwargs.get('optimizer', torch.optim.NAdam)
-        self.scheduler = kwargs.get('scheduler', torch.optim.lr_scheduler.ReduceLROnPlateau)
-        self.loss_kwargs = {}
-        self.loss_kwargs.update(kwargs.get('loss_kwargs', {}))
-        self.optimizer_kwargs = {'params': self.parameters(), 'lr': self.lr, 'weight_decay': config.WEIGHT_DECAY}
-        self.optimizer_kwargs.update(kwargs.get('optimizer_kwargs', {}))
-        self.scheduler_kwargs = {}
-        self.scheduler_kwargs.update(kwargs.get('scheduler_kwargs', {}))
-
-        self.save_hyperparameters(config.hparams)
+    def _run_segments(self, x, n_segments):
+        """Run *n_segments* forward passes, detaching carry between each."""
+        carry = None
+        output = None
+        for _ in range(n_segments):
+            output, carry = self.forward(x, carry)
+            carry = HRMCarry(z_H=carry.z_H.detach(), z_L=carry.z_L.detach())
+        return output, carry
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        y_hat = self.forward(x)
-        loss = self.loss(y_hat, y.view_as(y_hat), **self.loss_kwargs)
-        self.log('train_loss', loss, sync_dist=True, prog_bar=True, logger=True, on_epoch=True, on_step=config.ON_STEP)
-        return loss
+        carry = None
+        total_loss = 0.0
+
+        for _ in range(self.n_supervision):
+            y_hat, carry = self.forward(x, carry)
+            total_loss = total_loss + self.loss_fn(y_hat, y.view_as(y_hat), **self.loss_kwargs)
+            carry = HRMCarry(z_H=carry.z_H.detach(), z_L=carry.z_L.detach())
+
+        avg_loss = total_loss / self.n_supervision
+        self.log('train_loss', avg_loss, sync_dist=True, prog_bar=True,
+                 logger=True, on_epoch=True, on_step=config.ON_STEP)
+        return avg_loss
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        y_hat = self.forward(x)
-        loss = self.val_loss(y_hat, y.view_as(y_hat))
-        self.log('val_loss', loss, sync_dist=True, prog_bar=True, logger=True, on_epoch=True, on_step=False)
+        y_hat, _ = self._run_segments(x, self.n_supervision)
+        loss = self.loss_fn(y_hat, y.view_as(y_hat))
+        self.log('val_loss', loss, sync_dist=True, prog_bar=True,
+                 logger=True, on_epoch=True, on_step=False)
         return loss
 
     def test_step(self, batch, batch_idx):
         x, y = batch
-        y_hat = self.forward(x)
-        loss = self.val_loss(y_hat, y.view_as(y_hat))
-        self.log('test_loss', loss, sync_dist=True, prog_bar=True, logger=True, on_epoch=True, on_step=False)
+        y_hat, _ = self._run_segments(x, self.n_supervision)
+        loss = self.loss_fn(y_hat, y.view_as(y_hat))
+        self.log('test_loss', loss, sync_dist=True, prog_bar=True,
+                 logger=True, on_epoch=True, on_step=False)
         return loss
 
+    # ── optimizer ─────────────────────────────────────────────────────
+
     def configure_optimizers(self):
-        optimizer = self.optimizer(**self.optimizer_kwargs)
-        scheduler = self.scheduler(optimizer, **self.scheduler_kwargs)
-        if self.scheduler == torch.optim.lr_scheduler.ReduceLROnPlateau:
-            self.s_config = {"scheduler": scheduler, "monitor": "val_loss"}
-        elif self.scheduler == torch.optim.lr_scheduler.OneCycleLR or self.scheduler == torch.optim.lr_scheduler.CyclicLR:
-            self.s_config = {'scheduler': scheduler, 'interval': 'step'}
-        return {"optimizer": optimizer, "lr_scheduler": self.s_config}
+        opt_kwargs = {
+            'params': self.parameters(),
+            'lr': self.lr,
+            'weight_decay': self.weight_decay,
+        }
+        opt_kwargs.update(self.optimizer_kwargs)
+        optimizer = self.optimizer_cls(**opt_kwargs)
+
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, **self.scheduler_kwargs
+        )
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {"scheduler": scheduler, "monitor": "val_loss"},
+        }
+
+    # ── inference ─────────────────────────────────────────────────────
+
+    def predict(self, X, n_supervision=None):
+        """Run all deep-supervision segments and return the final output.
+
+        This replaces the PredictorMixin.predict() so that inference
+        always uses the full reasoning chain.
+
+        Args:
+            X: Input tensor (B, N, input_dim).
+            n_supervision: Override number of segments (for inference-time
+                scaling -- see HRM paper Sec. 2, Fig. 5c).
+        """
+        n = n_supervision or self.n_supervision
+        self.eval()
+        with torch.no_grad():
+            output, _ = self._run_segments(X, n)
+        return output

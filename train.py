@@ -1,7 +1,8 @@
 import os
-import torch.nn as nn
+
+import numpy as np
+import torch
 import torch.nn.functional as F
-import torch.optim
 from lightning.pytorch import Trainer, seed_everything
 from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor, TQDMProgressBar
 from lightning.pytorch.loggers import TensorBoardLogger
@@ -16,8 +17,6 @@ seed = config.SEED if config.SEED else np.random.randint(1, 10000)
 print_block(f"SEED: {seed}")
 seed_everything(seed)
 
-torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_dtype(torch.float32)
-
 RUN_NAME = config.RUN_NAME
 ckpt_path = f'tlogs/{RUN_NAME}/checkpoints'
 last_path = ckpt_path + '/last.ckpt'
@@ -25,34 +24,25 @@ if not config.CONTINUOUS and os.path.exists(last_path):
     os.remove(last_path)
 
 params = {
+    # HRM architecture
+    'hidden_size': config.HIDDEN_SIZE,
+    'H_layers': config.H_LAYERS,
+    'L_layers': config.L_LAYERS,
+    'H_cycles': config.H_CYCLES,
+    'L_cycles': config.L_CYCLES,
+    'num_heads': config.NUM_HEADS,
+    'expansion': config.EXPANSION,
+    'n_supervision': config.N_SUPERVISION,
+
+    # Training
     'lr': 1e-3,
-    'hidden_dim': 64,
-    'num_levels': 2,
-    'activation': nn.LeakyReLU,
-    'drop_rate': 0.17,
+    'weight_decay': 0.01,
     'loss': F.mse_loss,
-    'nsteps_per_cycle': 3,
-    'ncycles': 2,
-    # 'loss_kwargs': {
-    #     'beta': 1.575184625409794,
-    # },
-    'optimizer': torch.optim.NAdam,
+    'optimizer': torch.optim.AdamW,
     'optimizer_kwargs': {
-        'betas': (0.9241000987227369, 0.9996730603074183),
-        'eps': 1e-12,
-        'weight_decay': 3.0464200451047e-08,
-        'momentum_decay': 0.08245131333657932,
-        'decoupled_weight_decay': True
+        'betas': (0.9, 0.999),
+        'eps': 1e-8,
     },
-    # 'scheduler': optim.lr_scheduler.CyclicLR,
-    # 'scheduler_kwargs': {
-    #     'base_lr': 7e-4,
-    #     'max_lr': .01,
-    #     'step_size_up': 2000,
-    #     'scale_fn': None,
-    #     'mode': 'triangular',   # only used if 'scale_fn' is None
-    #     'gamma': 1.0,   # only used if 'mode' = 'exp_range'
-    # },
     'scheduler_kwargs': {
         'factor': 0.25,
         'patience': 4,
@@ -62,18 +52,15 @@ params = {
 config.update_hparams(params)
 
 data_module = leaklessDataModule()
-
 model = Leakless(**params)
 
-# (training batches)/(4 gpus)/(freq) to log 'freq' times per epoch
-ngpus = 4
+# Log frequency: ~10 times per epoch
+ngpus = 4 if not config.MAC else 1
 freq = 10
-log_steps = int(0.8 * config.NUM_SAMPLES / config.BATCH_SIZE / ngpus / freq)
-if log_steps == 0:
-    log_steps = 1
+log_steps = max(1, int(0.8 * config.NUM_SAMPLES / config.BATCH_SIZE / ngpus / freq))
 
 trainer = Trainer(
-    max_epochs=200,
+    max_epochs=config.MAX_EPOCHS,
     callbacks=[
         ModelCheckpoint(
             dirpath=ckpt_path,
@@ -89,11 +76,11 @@ trainer = Trainer(
         TQDMProgressBar(refresh_rate=log_steps),
     ],
     gradient_clip_val=config.GRADIENT_CLIP_VAL,
-    accelerator='gpu',
-    devices=-1,
+    accelerator='gpu' if not config.MAC else 'auto',
+    devices=-1 if not config.MAC else 'auto',
     strategy='ddp' if not config.MAC else 'auto',
-    sync_batchnorm=True,
-    logger=TensorBoardLogger('tlogs', name=f"{RUN_NAME}"),
+    sync_batchnorm=not config.MAC,
+    logger=TensorBoardLogger('tlogs', name=RUN_NAME),
     log_every_n_steps=log_steps,
     profiler=PyTorchProfiler(
         dirpath='tlogs/profiles',
@@ -102,7 +89,5 @@ trainer = Trainer(
 )
 
 print_block("TRAINING...")
-
 trainer.fit(model, datamodule=data_module, ckpt_path='last')
-
 trainer.test(model, datamodule=data_module)

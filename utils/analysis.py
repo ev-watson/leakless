@@ -60,6 +60,14 @@ def rho_metric(input_vector, output_vector):
 def print_analysis(metric_obj, g, t, ntrials, suppress, err, verbose):
     """
     Helper function for random tests
+
+    :param metric_obj: obj that can be passed (g, t)
+    :param g: guess vector
+    :param t: target vector
+    :param ntrials: int, number of trials
+    :param suppress: bool, if true no print statements
+    :param err: bool, enable printing to stderr as well
+    :param verbose: bool, enable verbose output
     """
     metric = metric_obj(g, t)
     if not suppress:
@@ -121,7 +129,7 @@ def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, supp
         print_block("TESTING COMPLETE, BEGINNING ANALYSIS", err=err)
 
     # keep torch for metric calc
-    metric = print_analysis(SpectralBinLoss(bands=config.BANDS), pred_vals, target_data, neff, suppress, err, verbose)
+    metric = print_analysis(rho_metric, pred_vals, target_data, neff, suppress, err, verbose)
 
     # drop torch
     input_vector = input_data.cpu().numpy()

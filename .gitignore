@@ -1,0 +1,28 @@
+# numpy data files
+*.npy
+
+# compiled Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# macOS metadata
+.DS_Store
+
+# IDE config
+.idea/
+.vscode/
+
+# training logs, checkpoints, profiles
+tlogs/
+checkpoints/
+archived/
+
+# local dev / project management
+CLAUDE.md
+prompts/
+reference-sheets/
+get_ckpts.sh
+
+# scaler artifacts
+scaler.pkl
