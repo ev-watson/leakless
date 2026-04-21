@@ -47,3 +47,7 @@ Training uses PyTorch Lightning with TensorBoard logging, gradient clipping, ear
 - PyTorch, PyTorch Lightning
 - HEALPy, NaMaster (pymaster)
 - NumPy, joblib, Optuna
+
+## AI Disclosure
+
+AI-assisted tools (Claude, Anthropic) were used during development of this repository for code architecture, implementation, and documentation.
