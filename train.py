@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from lightning.pytorch import Trainer, seed_everything
-from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor, TQDMProgressBar
+from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor, TQDMProgressBar, EarlyStopping
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.profilers import PyTorchProfiler
 
@@ -12,6 +12,10 @@ import config
 from data_construction import leaklessDataModule
 from models import Leakless
 from utils import GradientNormCallback, print_block, RollingBufferCallback
+
+
+from torch.nn.attention import SDPBackend
+print(torch.backends.cuda.flash_sdp_enabled(), torch.backends.cuda.mem_efficient_sdp_enabled())
 
 seed = config.SEED if config.SEED else np.random.randint(1, 10000)
 print_block(f"SEED: {seed}")
@@ -32,7 +36,7 @@ params = {
     'L_cycles': config.L_CYCLES,
     'num_heads': config.NUM_HEADS,
     'expansion': config.EXPANSION,
-    'n_supervision': config.N_SUPERVISION,
+    'n_supervision': 2,  # config.N_SUPERVISION (reduced from 4 for provisional run)
 
     # Training
     'lr': 1e-3,
@@ -71,6 +75,11 @@ log_steps = max(1, int(0.8 * config.NUM_SAMPLES / config.BATCH_SIZE / ngpus / fr
 trainer = Trainer(
     max_epochs=config.MAX_EPOCHS,
     callbacks=[
+        EarlyStopping(
+            monitor='val_loss',
+            mode='min',
+            patience=config.PATIENCE,
+        ),
         ModelCheckpoint(
             dirpath=ckpt_path,
             filename='{epoch}-{step}',

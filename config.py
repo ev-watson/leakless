@@ -21,7 +21,7 @@ MASK_APOSCALE = 10      # apodization scale for mask
 MASK_APOTYPE = 'C2'     # nmt apotype
 
 # ── Data handling ─────────────────────────────────────────────────────
-BATCH_SIZE = 32
+BATCH_SIZE = 8
 NUM_WORKERS = 16
 PREFETCH_FACTOR = 4
 PIN_MEMORY = True
