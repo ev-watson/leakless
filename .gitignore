@@ -23,6 +23,7 @@ CLAUDE.md
 prompts/
 reference-sheets/
 get_ckpts.sh
+workspace.ipynb
 
 # scaler artifacts
 scaler.pkl
