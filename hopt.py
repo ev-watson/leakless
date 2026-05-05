@@ -184,6 +184,7 @@ def objective(trial):
         devices=-1 if not config.MAC else 'auto',
         strategy='ddp' if not config.MAC else 'auto',
         sync_batchnorm=not config.MAC,
+        precision=config.PRECISION if not config.MAC else '32-true',
         benchmark=True,
         logger=TensorBoardLogger('hopt', name=config.RUN_NAME),
         log_every_n_steps=log_steps,

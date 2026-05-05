@@ -25,6 +25,7 @@ BATCH_SIZE = 8
 NUM_WORKERS = 16
 PREFETCH_FACTOR = 4
 PIN_MEMORY = True
+PRECISION = '16-mixed'
 
 # ── HRM architecture ─────────────────────────────────────────────────
 INPUT_DIM = 4                       # [Re_E, Im_E, Re_B, Im_B]

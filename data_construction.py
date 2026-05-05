@@ -9,7 +9,9 @@ from torch.utils.data import DataLoader, Dataset
 import config
 from utils import Scaler
 
-torch.set_default_dtype(torch.float64) if not config.MAC else torch.set_default_dtype(torch.float32)
+torch.set_default_dtype(torch.float32)
+
+DATA_DTYPE = np.float32
 
 
 class leaklessDataset(Dataset):
@@ -36,10 +38,7 @@ class indexedDataset(Dataset):
         self.input_slice = slice(None, config.INPUT_DIM)
         self.target_slice = slice(config.INPUT_DIM, None)
 
-        if config.MAC:
-            self.dtype = np.float32
-        else:
-            self.dtype = np.float64
+        self.dtype = DATA_DTYPE
 
     def __len__(self):
         return len(self.indices)
@@ -97,8 +96,7 @@ class leaklessDataModule(LightningDataModule):
             # only these rows get read into memory
             self.features = data[idxs]
 
-            if config.MAC:  # MAC rejects float64
-                self.features = self.features.astype(np.float32)
+            self.features = self.features.astype(DATA_DTYPE, copy=False)
 
             if config.SCALE:
                 # scale input and targets separately

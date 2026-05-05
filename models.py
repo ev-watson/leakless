@@ -61,6 +61,9 @@ class Leakless(LightningModule):
     # ── forward ───────────────────────────────────────────────────────
 
     def forward(self, x: torch.Tensor, carry=None):
+        param_dtype = next(self.net.parameters()).dtype
+        if x.dtype != param_dtype:
+            x = x.to(dtype=param_dtype)
         return self.net(x, carry)
 
     # ── deep supervision steps ────────────────────────────────────────
@@ -81,7 +84,8 @@ class Leakless(LightningModule):
 
         for _ in range(self.n_supervision):
             y_hat, carry = self.forward(x, carry)
-            total_loss = total_loss + self.loss_fn(y_hat, y.view_as(y_hat), **self.loss_kwargs)
+            target = y.to(dtype=y_hat.dtype).view_as(y_hat)
+            total_loss = total_loss + self.loss_fn(y_hat, target, **self.loss_kwargs)
             carry = HRMCarry(z_H=carry.z_H.detach(), z_L=carry.z_L.detach())
 
         avg_loss = total_loss / self.n_supervision
@@ -92,7 +96,7 @@ class Leakless(LightningModule):
     def validation_step(self, batch, batch_idx):
         x, y = batch
         y_hat, _ = self._run_segments(x, self.n_supervision)
-        loss = self.loss_fn(y_hat, y.view_as(y_hat))
+        loss = self.loss_fn(y_hat, y.to(dtype=y_hat.dtype).view_as(y_hat))
         self.log('val_loss', loss, sync_dist=True, prog_bar=True,
                  logger=True, on_epoch=True, on_step=False)
         return loss
@@ -100,7 +104,7 @@ class Leakless(LightningModule):
     def test_step(self, batch, batch_idx):
         x, y = batch
         y_hat, _ = self._run_segments(x, self.n_supervision)
-        loss = self.loss_fn(y_hat, y.view_as(y_hat))
+        loss = self.loss_fn(y_hat, y.to(dtype=y_hat.dtype).view_as(y_hat))
         self.log('test_loss', loss, sync_dist=True, prog_bar=True,
                  logger=True, on_epoch=True, on_step=False)
         return loss

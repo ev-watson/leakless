@@ -30,17 +30,17 @@ def rho_metric(input_vector, output_vector):
 
     # recombines the imaginary and real parts to one number
     alm_len = alm_len_from_lmax(lmax)
-    alm_b_in = np.zeros((ntrials, alm_len), dtype=np.complex128)
-    alm_b_out = np.zeros((ntrials, alm_len), dtype=np.complex128)
+    alm_b_in = np.zeros((ntrials, alm_len), dtype=np.complex64)
+    alm_b_out = np.zeros((ntrials, alm_len), dtype=np.complex64)
     for i in range(ntrials):
         alm_b_in[i] = recombine(input_vector[i])[1]
         alm_b_out[i] = recombine(output_vector[i])[1]
 
     # make maps from alm arrays and calc cross coeff (rho)
-    b_in = np.zeros((ntrials, lmax + 1), dtype=np.float64)
-    b_out = np.zeros((ntrials, lmax + 1), dtype=np.float64)
-    b_cross = np.zeros((ntrials, lmax + 1), dtype=np.float64)
-    b_cross_coeff = np.zeros((ntrials, lmax + 1), dtype=np.float64)
+    b_in = np.zeros((ntrials, lmax + 1), dtype=np.float32)
+    b_out = np.zeros((ntrials, lmax + 1), dtype=np.float32)
+    b_cross = np.zeros((ntrials, lmax + 1), dtype=np.float32)
+    b_cross_coeff = np.zeros((ntrials, lmax + 1), dtype=np.float32)
     for i in range(ntrials):
         b_in_masked_map = hp.alm2map(alm_b_in[i], nside=nside) * mask
         b_out_masked_map = hp.alm2map(alm_b_out[i], nside=nside) * mask
@@ -106,11 +106,11 @@ def leak_test(model, ntrials=100, batch_size=config.BATCH_SIZE, hopt=False, supp
 
     idx = np.random.randint(len(stack), size=neff)
     sampled = np.array([stack[i] for i in idx])  # shape [ntrials, npoints, 8]
-    pred_vals = torch.empty((neff, npoints, config.INPUT_DIM))
+    pred_vals = torch.empty((neff, npoints, config.INPUT_DIM), dtype=torch.float32)
 
     device = next(model.parameters()).device
-    input_data = torch.from_numpy(sampled[..., input_slice]).to(device=device, dtype=torch.get_default_dtype())
-    target_data = torch.from_numpy(sampled[..., target_slice]).to(device=device, dtype=torch.get_default_dtype())
+    input_data = torch.from_numpy(sampled[..., input_slice]).to(device=device, dtype=torch.float32)
+    target_data = torch.from_numpy(sampled[..., target_slice]).to(device=device, dtype=torch.float32)
     pred_vals = pred_vals.to(device)
 
     # Finds closest power of 2 that will make batch_size and num_batches as even as possible then multiplies by 2
@@ -168,27 +168,27 @@ def model_analysis(model, ntrials, nside, lmax, mask, outstream=sys.stdout):
 
     # recombines the imaginary and real parts to one number
     alm_len = alm_len_from_lmax(lmax)
-    alm_e_in = np.zeros((neff, alm_len), dtype=np.complex128)
-    alm_b_in = np.zeros((neff, alm_len), dtype=np.complex128)
-    alm_e_out = np.zeros((neff, alm_len), dtype=np.complex128)
-    alm_b_out = np.zeros((neff, alm_len), dtype=np.complex128)
-    alm_e_targ = np.zeros((neff, alm_len), dtype=np.complex128)
-    alm_b_targ = np.zeros((neff, alm_len), dtype=np.complex128)
+    alm_e_in = np.zeros((neff, alm_len), dtype=np.complex64)
+    alm_b_in = np.zeros((neff, alm_len), dtype=np.complex64)
+    alm_e_out = np.zeros((neff, alm_len), dtype=np.complex64)
+    alm_b_out = np.zeros((neff, alm_len), dtype=np.complex64)
+    alm_e_targ = np.zeros((neff, alm_len), dtype=np.complex64)
+    alm_b_targ = np.zeros((neff, alm_len), dtype=np.complex64)
     for i in range(neff):
         alm_e_in[i], alm_b_in[i] = recombine(input_vector[i])
         alm_e_out[i], alm_b_out[i] = recombine(output_vector[i])
         alm_e_targ[i], alm_b_targ[i] = recombine(target_vector[i])
 
     # make maps from alm arrays and calc cross coeff (rho)
-    e_in = np.zeros((neff, lmax + 1), dtype=np.float64)
-    b_in = np.zeros((neff, lmax + 1), dtype=np.float64)
-    e_out = np.zeros((neff, lmax + 1), dtype=np.float64)
-    b_out = np.zeros((neff, lmax + 1), dtype=np.float64)
-    e_targ = np.zeros((neff, lmax + 1), dtype=np.float64)
-    b_targ = np.zeros((neff, lmax + 1), dtype=np.float64)
-    e_cross = np.zeros((neff, lmax + 1), dtype=np.float64)
-    b_cross = np.zeros((neff, lmax + 1), dtype=np.float64)
-    b_cross_coeff = np.zeros((neff, lmax + 1), dtype=np.float64)
+    e_in = np.zeros((neff, lmax + 1), dtype=np.float32)
+    b_in = np.zeros((neff, lmax + 1), dtype=np.float32)
+    e_out = np.zeros((neff, lmax + 1), dtype=np.float32)
+    b_out = np.zeros((neff, lmax + 1), dtype=np.float32)
+    e_targ = np.zeros((neff, lmax + 1), dtype=np.float32)
+    b_targ = np.zeros((neff, lmax + 1), dtype=np.float32)
+    e_cross = np.zeros((neff, lmax + 1), dtype=np.float32)
+    b_cross = np.zeros((neff, lmax + 1), dtype=np.float32)
+    b_cross_coeff = np.zeros((neff, lmax + 1), dtype=np.float32)
     for i in tqdm(range(neff)):
         e_in_masked_map = hp.alm2map(alm_e_in[i], nside=nside) * mask
         b_in_masked_map = hp.alm2map(alm_b_in[i], nside=nside) * mask

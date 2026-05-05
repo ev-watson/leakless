@@ -90,7 +90,7 @@ def main():
     apo_mask = mask_apodization(low_mask, aposize=config.MASK_APOSCALE, apotype=config.MASK_APOTYPE)
 
     # ensures unique seeds
-    stacks = np.empty((n_samples, alm_len_from_lmax(lmax), 8), dtype=np.float64)
+    stacks = np.empty((n_samples, alm_len_from_lmax(lmax), 8), dtype=np.float32)
     for i in tqdm(range(n_samples), desc="Generating stacks", mininterval=10):
         stacks[i] = generate_stack(lensedCL, nside=nside, lmax=lmax, mask=apo_mask)
 

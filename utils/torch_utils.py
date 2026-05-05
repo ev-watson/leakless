@@ -36,7 +36,7 @@ def make_module(act):
 
 
 class Scaler:
-    """Standard scaler for 3D tensor inputs of shape [B, F, N].
+    """Standard scaler for 3D tensor inputs of shape [B, N, F].
 
     fit() accepts numpy arrays or torch.Tensor.
     transform() and inverse_transform() require torch.Tensor.
@@ -54,15 +54,15 @@ class Scaler:
 
     def fit(self, data: Union[np.ndarray, torch.Tensor]) -> "Scaler":
         if isinstance(data, torch.Tensor):
-            arr = data.detach().cpu().to(dtype=torch.get_default_dtype())
+            arr = data.detach().cpu().to(dtype=torch.float32)
         else:
-            arr = torch.from_numpy(np.asarray(data)).to(dtype=torch.get_default_dtype())
+            arr = torch.from_numpy(np.asarray(data)).to(dtype=torch.float32)
 
         if arr.ndim != 3:
-            raise ValueError(f"Input must be 3D [B, F, N], got {tuple(arr.shape)}")
+            raise ValueError(f"Input must be 3D [B, N, F], got {tuple(arr.shape)}")
 
-        self.mean_ = arr.mean(dim=(0, 2), keepdim=True)
-        self.std_ = arr.std(dim=(0, 2), unbiased=False, keepdim=True) + self.eps
+        self.mean_ = arr.mean(dim=(0, 1), keepdim=True)
+        self.std_ = arr.std(dim=(0, 1), unbiased=False, keepdim=True) + self.eps
         self.is_fitted = True
         return self
 
@@ -75,7 +75,7 @@ class Scaler:
 
     def fit_transform(self, data: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
         if not isinstance(data, torch.Tensor):
-            data = torch.from_numpy(np.asarray(data)).to(dtype=torch.get_default_dtype())
+            data = torch.from_numpy(np.asarray(data)).to(dtype=torch.float32)
         self.fit(data)
         return self.transform(data)
 
@@ -97,7 +97,7 @@ class PredictorMixin:
             scalers = joblib.load(config.SCALER_FILE)
             input_scaler = scalers['input_scaler']
             target_scaler = scalers['target_scaler']
-            input_data = input_scaler.transform(X.to(dtype=torch.get_default_dtype(), device=device))
+            input_data = input_scaler.transform(X.to(dtype=torch.float32, device=device))
             with torch.no_grad():
                 output_scaled = self.forward(input_data)
                 if isinstance(output_scaled, tuple):

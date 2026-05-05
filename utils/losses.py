@@ -60,14 +60,14 @@ class SpectralBinLoss(nn.Module):
 
         b = len(outputs)
         alm_len = alm_len_from_lmax(self.lmax)
-        alm_b_out = np.zeros((b, alm_len), dtype=np.complex128)
-        alm_b_targ = np.zeros((b, alm_len), dtype=np.complex128)
+        alm_b_out = np.zeros((b, alm_len), dtype=np.complex64)
+        alm_b_targ = np.zeros((b, alm_len), dtype=np.complex64)
         for i in range(b):
             alm_b_out[i] = recombine(outputs[i])[1]
             alm_b_targ[i] = recombine(targets[i])[1]
 
-        b_out = np.zeros((b, self.lmax + 1), dtype=np.float64)
-        b_targ = np.zeros((b, self.lmax + 1), dtype=np.float64)
+        b_out = np.zeros((b, self.lmax + 1), dtype=np.float32)
+        b_targ = np.zeros((b, self.lmax + 1), dtype=np.float32)
         for i in range(b):
             b_out_masked_map = hp.alm2map(alm_b_out[i], nside=self.nside) * self.low_mask
             b_targ_masked_map = hp.alm2map(alm_b_targ[i], nside=self.nside) * self.low_mask
@@ -83,7 +83,7 @@ class SpectralBinLoss(nn.Module):
                                 (np.sum(b_t_band ** 2, axis=-1) + self.eps ** 2))
             l2_bb_out += self.band_weights[i] * l2_bb_out_metric.mean()
 
-        return torch.tensor(l2_bb_out, device=device, dtype=torch.get_default_dtype())
+        return torch.tensor(l2_bb_out, device=device, dtype=torch.float32)
 
 
 def zero_one_approximation_loss(guess, target, sigma):
