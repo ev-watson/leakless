@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Leakless Handoff Report - 2026-05-27</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #18202a;
+      --muted: #5b6573;
+      --line: #d8dee8;
+      --panel: #f7f9fc;
+      --accent: #1d6fa5;
+      --warn: #8a5a00;
+      --ok: #1f7a4d;
+      --code: #eef2f7;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.48;
+      color: var(--ink);
+      background: white;
+    }
+
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 36px 24px 56px;
+    }
+
+    h1, h2, h3 {
+      line-height: 1.2;
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 34px;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin-top: 34px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      font-size: 22px;
+    }
+
+    h3 {
+      margin-top: 22px;
+      font-size: 16px;
+    }
+
+    p {
+      margin: 10px 0;
+    }
+
+    ul, ol {
+      margin: 10px 0 0 22px;
+      padding: 0;
+    }
+
+    li {
+      margin: 7px 0;
+    }
+
+    code {
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: var(--code);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.94em;
+    }
+
+    pre {
+      overflow-x: auto;
+      padding: 14px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--code);
+      font-size: 13px;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+    }
+
+    .meta {
+      margin-top: 10px;
+      color: var(--muted);
+    }
+
+    .summary {
+      margin-top: 24px;
+      padding: 18px 20px;
+      border-left: 4px solid var(--accent);
+      background: var(--panel);
+    }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: white;
+    }
+
+    .label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+
+    .ok {
+      color: var(--ok);
+      font-weight: 650;
+    }
+
+    .warn {
+      color: var(--warn);
+      font-weight: 650;
+    }
+
+    .todo {
+      color: var(--accent);
+      font-weight: 650;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 12px;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--line);
+      padding: 9px 8px;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 650;
+      background: var(--panel);
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Leakless Handoff Report</h1>
+  <p class="meta">Generated locally on 2026-05-27 22:46 PDT. Repository: <code>/Users/blu3/PycharmProjects/leakless</code>.</p>
+
+  <section class="summary">
+    <h2 style="margin-top:0; padding-top:0; border-top:0;">Current State</h2>
+    <p>The immediate blocker was not a stale checkpoint or Optuna study. The debug job now launches multiple Slurm ranks correctly, and the current script is running after switching away from the unsupported <code>--gpus-per-task</code> path.</p>
+    <p>The active priority is to let the HRM MSE run complete enough to evaluate the architecture change before adding NaMaster, adaptive losses, or further auxiliary objectives.</p>
+  </section>
+
+  <section>
+    <h2>Status Snapshot</h2>
+    <div class="status-grid">
+      <div class="card">
+        <span class="label">Training Launch</span>
+        <span class="ok">Running</span>
+        <p>Slurm/DDP reached rank 0 and rank 1 on the debug job, confirming multi-rank launch.</p>
+      </div>
+      <div class="card">
+        <span class="label">Current Loss Priority</span>
+        <span class="ok">MSE first</span>
+        <p>Use current HRM architecture with ordinary MSE before trying weighted coefficient loss.</p>
+      </div>
+      <div class="card">
+        <span class="label">NaMaster</span>
+        <span class="todo">Deferred</span>
+        <p>Keep as later evaluation baseline. Do not block the current HRM run on it.</p>
+      </div>
+      <div class="card">
+        <span class="label">Checkpoint Cause</span>
+        <span class="ok">Ruled out</span>
+        <p>Lightning explicitly reported no <code>last.ckpt</code> was loaded after <code>tlogs/*</code> was cleared.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What Was Debugged</h2>
+    <ol>
+      <li>The original DDP crash reported unused parameters during the first training step.</li>
+      <li>Clearing <code>tlogs/*</code> ruled out old model checkpoints as the direct source. The log said <code>.fit(ckpt_path="last")</code> found no last checkpoint.</li>
+      <li>The earlier debug launch had multiple visible GPUs but only one Slurm task, so Lightning initialized with <code>MEMBER: 1/1</code>. That was not a valid one-process-per-GPU DDP topology.</li>
+      <li>Changing to one task per GPU fixed the rank topology, but <code>--gpus-per-task=1</code> was rejected by Expanse because that system expects an explicit <code>--gpus</code> request.</li>
+      <li><code>--ntasks-per-gpu=1</code> produced correct ranks, but Lightning rejected the derived <code>SLURM_NTASKS=2</code> and required <code>--ntasks-per-node</code> instead.</li>
+      <li>The working direction is to keep explicit <code>--gpus=2</code> or <code>--gpus=4</code>, use <code>--ntasks-per-node=2</code> or <code>--ntasks-per-node=4</code>, and bind one task per GPU with <code>--tres-bind=gres/gpu:single:1</code>.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Expected Slurm Shape</h2>
+    <h3>Debug Job</h3>
+    <pre><code>#SBATCH --nodes=1
+#SBATCH --gpus=2
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=10
+#SBATCH --mem=96G
+#SBATCH --tres-bind=gres/gpu:single:1</code></pre>
+
+    <h3>Training Job</h3>
+    <pre><code>#SBATCH --nodes=1
+#SBATCH --gpus=4
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=10
+#SBATCH --mem=377308M
+#SBATCH --tres-bind=gres/gpu:single:1</code></pre>
+
+    <p>Keep the launch command as:</p>
+    <pre><code>srun --unbuffered python train.py "$@"</code></pre>
+
+    <p>The next log should show a world size of 2 for debug and 4 for training. Any return to <code>MEMBER: 1/1</code> means Slurm rank creation regressed.</p>
+  </section>
+
+  <section>
+    <h2>Implemented Work In This Session</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Area</th>
+          <th>State</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>eval.py</code></td>
+          <td>Updated</td>
+          <td>Stack-based evaluation path with checkpoint inference, band errors, correlation metrics, null baseline, and bootstrap confidence intervals.</td>
+        </tr>
+        <tr>
+          <td><code>utils/losses.py</code></td>
+          <td>Updated</td>
+          <td>Added bounded manual low-ell coefficient weighting. This is not a learned self-weighting loss.</td>
+        </tr>
+        <tr>
+          <td><code>train.py</code></td>
+          <td>Updated</td>
+          <td>Added CLI controls for run name, loss selection, supervision count, learning rate, weight decay, low-ell weights, and B-channel weight. Default remains MSE.</td>
+        </tr>
+        <tr>
+          <td><code>models.py</code></td>
+          <td>Updated</td>
+          <td>Loss module is excluded from Lightning hyperparameter serialization; metadata remains represented by loss name and explicit weighting args.</td>
+        </tr>
+        <tr>
+          <td><code>job_scripts/submit_tr_pipeline.sh</code></td>
+          <td>Updated</td>
+          <td>Forwards arguments to the training script.</td>
+        </tr>
+        <tr>
+          <td><code>GPD/analysis/low-ell-cleaning-and-gradient-report.md</code></td>
+          <td>Existing context</td>
+          <td>Documents why MSE is the stable backbone, why bandpower-only losses can underperform, and where NaMaster fits as a baseline.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Important Decisions</h2>
+    <ul>
+      <li><strong>No <code>find_unused_parameters=True</code> workaround.</strong> It hides the symptom and does not explain the graph or launch mismatch.</li>
+      <li><strong>Run HRM architecture with MSE first.</strong> The project should evaluate the updated architecture before adding auxiliary losses.</li>
+      <li><strong>Defer NaMaster.</strong> NaMaster is still useful for later pure-B bandpower comparison, but it is not required before the current training run.</li>
+      <li><strong>Keep weighted coefficient loss experimental.</strong> The current weighted loss uses human-assigned bounded weights. It should not replace MSE unless evaluation shows a clear gain.</li>
+      <li><strong>Adaptive/self-weighted loss should be treated cautiously.</strong> If pursued later, prefer bounded validation-driven or uncertainty-weighted schemes over letting the model freely rewrite its objective during training.</li>
+      <li><strong>Debugging does not imply file edits.</strong> Future debugging should report the mismatch first unless the user explicitly authorizes edits.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Next Steps</h2>
+    <ol>
+      <li>Let the current debug job run until it either reaches validation or fails with a new stack trace.</li>
+      <li>If debug reaches a stable training loop, submit the 4-GPU training job with the same Slurm topology.</li>
+      <li>For the first architecture check, use default MSE unless there is a deliberate reason to test <code>--loss weighted_coeff</code>.</li>
+      <li>After a checkpoint exists, run the stack-based evaluator against the best or latest checkpoint and record bandwise errors plus bootstrap confidence intervals.</li>
+      <li>Compare model output against input/null baselines first. Only then test weighted coefficient loss.</li>
+      <li>Keep NaMaster work parked until the model run has produced a concrete checkpoint and evaluation table.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Commands To Resume From Here</h2>
+    <p>Check running job logs on Expanse:</p>
+    <pre><code>tail -f script_logs/debug.e&lt;jobid&gt;.txt script_logs/debug.o&lt;jobid&gt;.txt</code></pre>
+
+    <p>Expected healthy DDP signs:</p>
+    <pre><code>Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/2
+Initializing distributed: GLOBAL_RANK: 1, MEMBER: 2/2</code></pre>
+
+    <p>After training creates a checkpoint, evaluate locally or on the cluster with the project evaluator:</p>
+    <pre><code>python eval.py --ckpt tlogs/leakless_hrm/checkpoints/last.ckpt --trials 512 --bootstrap 1000</code></pre>
+  </section>
+
+  <section>
+    <h2>Known Caveats</h2>
+    <ul>
+      <li>The local git worktree has multiple modified files and an untracked <code>GPD/</code> directory. Do not assume all modifications are from one change set.</li>
+      <li><code>utils/analysis.py</code> and parts of <code>utils/losses.py</code> had pre-existing dirty changes before the later training/evaluation work.</li>
+      <li>The debug job uses 2 GPUs while <code>train.py</code> currently computes progress/log cadence with <code>ngpus = 4</code>. This should not affect training correctness, but it can make debug logging cadence slightly off.</li>
+      <li>The profiler shutdown <code>ImportError: sys.meta_path is None</code> seen during failed runs is secondary cleanup noise after the main failure.</li>
+      <li><code>ckpt_path='last'</code> is harmless when no checkpoint exists, but it produces a warning. It is not the cause of the DDP issue observed here.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

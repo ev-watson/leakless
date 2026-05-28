@@ -56,7 +56,9 @@ class Leakless(LightningModule):
             rope_theta=kwargs.get('rope_theta', config.ROPE_THETA),
         )
 
-        self.save_hyperparameters(kwargs)
+        hparams = dict(kwargs)
+        hparams.pop('loss', None)
+        self.save_hyperparameters(hparams)
 
     # ── forward ───────────────────────────────────────────────────────
 

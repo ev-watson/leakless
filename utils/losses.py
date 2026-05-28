@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Sequence
 
 import healpy as hp
 import numpy as np
@@ -8,6 +8,58 @@ import joblib
 
 import config
 from .harmonic_helpers import alm_len_from_lmax, recombine
+
+
+def ell_index_for_lmax(lmax: int) -> torch.Tensor:
+    """Return ell for each coefficient in healpy's packed alm ordering."""
+    return torch.tensor(
+        [ell for m in range(lmax + 1) for ell in range(m, lmax + 1)],
+        dtype=torch.long,
+    )
+
+
+class WeightedCoefficientLoss(nn.Module):
+    """Bounded ell-aware coefficient reconstruction loss.
+
+    This keeps the dense coefficient-space MSE objective, but gives selected
+    ell bands more influence. Weights are normalized to mean one so changing
+    band emphasis does not silently rescale the optimizer step.
+    """
+
+    def __init__(
+        self,
+        bands: Optional[Sequence[Tuple[int, int]]] = None,
+        band_weights: Optional[Sequence[float]] = None,
+        b_channel_weight: float = 1.0,
+        lmax: Optional[int] = None,
+    ):
+        super().__init__()
+        self.lmax = config.LMAX if lmax is None else lmax
+        self.b_channel_weight = float(b_channel_weight)
+        bands = config.BANDS if bands is None else bands
+        if band_weights is None:
+            band_weights = [4.0, 2.0, 1.0, 1.0]
+        if len(bands) != len(band_weights):
+            raise ValueError("bands and band_weights must have the same length.")
+
+        ell_index = ell_index_for_lmax(self.lmax)
+        alm_weights = torch.ones(alm_len_from_lmax(self.lmax), dtype=torch.float32)
+        for (lmin, lmax_exclusive), weight in zip(bands, band_weights):
+            if lmin < 0 or lmax_exclusive <= lmin or lmax_exclusive > self.lmax + 1:
+                raise ValueError(f"Invalid ell band ({lmin}, {lmax_exclusive}) for lmax={self.lmax}.")
+            alm_weights[(ell_index >= lmin) & (ell_index < lmax_exclusive)] = float(weight)
+        alm_weights = alm_weights / alm_weights.mean()
+
+        channel_weights = torch.ones(config.INPUT_DIM, dtype=torch.float32)
+        if config.INPUT_DIM >= 4:
+            channel_weights[2:] = self.b_channel_weight
+
+        self.register_buffer("alm_weights", alm_weights.view(1, -1, 1))
+        self.register_buffer("channel_weights", channel_weights.view(1, 1, -1))
+
+    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        weights = self.alm_weights.to(device=x.device, dtype=x.dtype) * self.channel_weights.to(device=x.device, dtype=x.dtype)
+        return torch.mean(weights * torch.square(x - y))
 
 
 class SpectralBinLoss(nn.Module):
@@ -60,14 +112,14 @@ class SpectralBinLoss(nn.Module):
 
         b = len(outputs)
         alm_len = alm_len_from_lmax(self.lmax)
-        alm_b_out = np.zeros((b, alm_len), dtype=np.complex64)
-        alm_b_targ = np.zeros((b, alm_len), dtype=np.complex64)
+        alm_b_out = np.zeros((b, alm_len), dtype=np.complex128)
+        alm_b_targ = np.zeros((b, alm_len), dtype=np.complex128)
         for i in range(b):
             alm_b_out[i] = recombine(outputs[i])[1]
             alm_b_targ[i] = recombine(targets[i])[1]
 
-        b_out = np.zeros((b, self.lmax + 1), dtype=np.float32)
-        b_targ = np.zeros((b, self.lmax + 1), dtype=np.float32)
+        b_out = np.zeros((b, self.lmax + 1), dtype=np.float64)
+        b_targ = np.zeros((b, self.lmax + 1), dtype=np.float64)
         for i in range(b):
             b_out_masked_map = hp.alm2map(alm_b_out[i], nside=self.nside) * self.low_mask
             b_targ_masked_map = hp.alm2map(alm_b_targ[i], nside=self.nside) * self.low_mask

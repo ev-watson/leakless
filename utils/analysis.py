@@ -15,32 +15,33 @@ def rho_metric(input_vector, output_vector):
     """
     calculates the deviation of the cross correlation coefficient between input and output (rho) from 1
     Args:
-        input_vector: array-like, shape (ntrials, 4, alm_len)
-        output_vector: array-like, shape (ntrials, 4, alm_len)
+        input_vector: array-like, shape (ntrials, alm_len, 4)
+        output_vector: array-like, shape (ntrials, alm_len, 4)
 
     Returns:
         deviation: float, 1-rho
     """
     ntrials = input_vector.shape[0]
-    nside = nside_from_alm_len(input_vector.shape[-1])
-    lmax = lmax_from_alm_len(input_vector.shape[-1])
+    alm_len = input_vector.shape[-2]
+    nside = nside_from_alm_len(alm_len)
+    lmax = lmax_from_alm_len(alm_len)
 
     mask = hp.read_map(config.MASK_FILE, field=1)
     mask = hp.ud_grade(mask, nside_out=nside, dtype=np.int32)
 
     # recombines the imaginary and real parts to one number
     alm_len = alm_len_from_lmax(lmax)
-    alm_b_in = np.zeros((ntrials, alm_len), dtype=np.complex64)
-    alm_b_out = np.zeros((ntrials, alm_len), dtype=np.complex64)
+    alm_b_in = np.zeros((ntrials, alm_len), dtype=np.complex128)
+    alm_b_out = np.zeros((ntrials, alm_len), dtype=np.complex128)
     for i in range(ntrials):
         alm_b_in[i] = recombine(input_vector[i])[1]
         alm_b_out[i] = recombine(output_vector[i])[1]
 
     # make maps from alm arrays and calc cross coeff (rho)
-    b_in = np.zeros((ntrials, lmax + 1), dtype=np.float32)
-    b_out = np.zeros((ntrials, lmax + 1), dtype=np.float32)
-    b_cross = np.zeros((ntrials, lmax + 1), dtype=np.float32)
-    b_cross_coeff = np.zeros((ntrials, lmax + 1), dtype=np.float32)
+    b_in = np.zeros((ntrials, lmax + 1), dtype=np.float64)
+    b_out = np.zeros((ntrials, lmax + 1), dtype=np.float64)
+    b_cross = np.zeros((ntrials, lmax + 1), dtype=np.float64)
+    b_cross_coeff = np.zeros((ntrials, lmax + 1), dtype=np.float64)
     for i in range(ntrials):
         b_in_masked_map = hp.alm2map(alm_b_in[i], nside=nside) * mask
         b_out_masked_map = hp.alm2map(alm_b_out[i], nside=nside) * mask
@@ -168,27 +169,27 @@ def model_analysis(model, ntrials, nside, lmax, mask, outstream=sys.stdout):
 
     # recombines the imaginary and real parts to one number
     alm_len = alm_len_from_lmax(lmax)
-    alm_e_in = np.zeros((neff, alm_len), dtype=np.complex64)
-    alm_b_in = np.zeros((neff, alm_len), dtype=np.complex64)
-    alm_e_out = np.zeros((neff, alm_len), dtype=np.complex64)
-    alm_b_out = np.zeros((neff, alm_len), dtype=np.complex64)
-    alm_e_targ = np.zeros((neff, alm_len), dtype=np.complex64)
-    alm_b_targ = np.zeros((neff, alm_len), dtype=np.complex64)
+    alm_e_in = np.zeros((neff, alm_len), dtype=np.complex128)
+    alm_b_in = np.zeros((neff, alm_len), dtype=np.complex128)
+    alm_e_out = np.zeros((neff, alm_len), dtype=np.complex128)
+    alm_b_out = np.zeros((neff, alm_len), dtype=np.complex128)
+    alm_e_targ = np.zeros((neff, alm_len), dtype=np.complex128)
+    alm_b_targ = np.zeros((neff, alm_len), dtype=np.complex128)
     for i in range(neff):
         alm_e_in[i], alm_b_in[i] = recombine(input_vector[i])
         alm_e_out[i], alm_b_out[i] = recombine(output_vector[i])
         alm_e_targ[i], alm_b_targ[i] = recombine(target_vector[i])
 
     # make maps from alm arrays and calc cross coeff (rho)
-    e_in = np.zeros((neff, lmax + 1), dtype=np.float32)
-    b_in = np.zeros((neff, lmax + 1), dtype=np.float32)
-    e_out = np.zeros((neff, lmax + 1), dtype=np.float32)
-    b_out = np.zeros((neff, lmax + 1), dtype=np.float32)
-    e_targ = np.zeros((neff, lmax + 1), dtype=np.float32)
-    b_targ = np.zeros((neff, lmax + 1), dtype=np.float32)
-    e_cross = np.zeros((neff, lmax + 1), dtype=np.float32)
-    b_cross = np.zeros((neff, lmax + 1), dtype=np.float32)
-    b_cross_coeff = np.zeros((neff, lmax + 1), dtype=np.float32)
+    e_in = np.zeros((neff, lmax + 1), dtype=np.float64)
+    b_in = np.zeros((neff, lmax + 1), dtype=np.float64)
+    e_out = np.zeros((neff, lmax + 1), dtype=np.float64)
+    b_out = np.zeros((neff, lmax + 1), dtype=np.float64)
+    e_targ = np.zeros((neff, lmax + 1), dtype=np.float64)
+    b_targ = np.zeros((neff, lmax + 1), dtype=np.float64)
+    e_cross = np.zeros((neff, lmax + 1), dtype=np.float64)
+    b_cross = np.zeros((neff, lmax + 1), dtype=np.float64)
+    b_cross_coeff = np.zeros((neff, lmax + 1), dtype=np.float64)
     for i in tqdm(range(neff)):
         e_in_masked_map = hp.alm2map(alm_e_in[i], nside=nside) * mask
         b_in_masked_map = hp.alm2map(alm_b_in[i], nside=nside) * mask

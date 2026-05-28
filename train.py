@@ -1,3 +1,4 @@
+import argparse
 import os
 
 import numpy as np
@@ -11,17 +12,45 @@ from lightning.pytorch.profilers import PyTorchProfiler
 import config
 from data_construction import leaklessDataModule
 from models import Leakless
-from utils import GradientNormCallback, print_block, RollingBufferCallback
+from utils import GradientNormCallback, print_block, RollingBufferCallback, WeightedCoefficientLoss
 
 
-from torch.nn.attention import SDPBackend
-print(torch.backends.cuda.flash_sdp_enabled(), torch.backends.cuda.mem_efficient_sdp_enabled())
+print("Flash SDP enabled:", torch.backends.cuda.flash_sdp_enabled())
+print("Memory Efficient SDP enabled:", torch.backends.cuda.mem_efficient_sdp_enabled())
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Train Leakless HRM.")
+    parser.add_argument("--run-name", type=str, default=config.RUN_NAME)
+    parser.add_argument("--loss", choices=("mse", "weighted_coeff"), default="mse")
+    parser.add_argument("--n-supervision", type=int, default=2)
+    parser.add_argument("--lr", type=float, default=config.LEARNING_RATE)
+    parser.add_argument("--weight-decay", type=float, default=config.WEIGHT_DECAY)
+    parser.add_argument("--low-ell-weights", type=float, nargs=len(config.BANDS), default=[4.0, 2.0, 1.0, 1.0])
+    parser.add_argument("--b-channel-weight", type=float, default=1.0)
+    return parser.parse_args()
+
+
+def build_loss(args):
+    if args.loss == "mse":
+        return F.mse_loss
+    if args.loss == "weighted_coeff":
+        return WeightedCoefficientLoss(
+            bands=config.BANDS,
+            band_weights=args.low_ell_weights,
+            b_channel_weight=args.b_channel_weight,
+            lmax=config.LMAX,
+        )
+    raise ValueError(f"Unsupported loss: {args.loss}")
+
+
+args = parse_args()
 
 seed = config.SEED if config.SEED else np.random.randint(1, 10000)
 print_block(f"SEED: {seed}")
 seed_everything(seed)
 
-RUN_NAME = config.RUN_NAME
+RUN_NAME = args.run_name
 ckpt_path = f'tlogs/{RUN_NAME}/checkpoints'
 last_path = ckpt_path + '/last.ckpt'
 if not config.CONTINUOUS and os.path.exists(last_path):
@@ -36,12 +65,12 @@ params = {
     'L_cycles': config.L_CYCLES,
     'num_heads': config.NUM_HEADS,
     'expansion': config.EXPANSION,
-    'n_supervision': 2,  # config.N_SUPERVISION (reduced from 4 for provisional run)
+    'n_supervision': args.n_supervision,
 
     # Training
-    'lr': 1e-3,
-    'weight_decay': 0.01,
-    'loss': F.mse_loss,
+    'lr': args.lr,
+    'weight_decay': args.weight_decay,
+    'loss': build_loss(args),
     'optimizer': torch.optim.AdamW,
     'optimizer_kwargs': {
         'betas': (0.9, 0.999),
@@ -61,6 +90,13 @@ params = {
         'patience': 4,
     },
 }
+
+if args.loss == "weighted_coeff":
+    params['loss_name'] = args.loss
+    params['low_ell_weights'] = args.low_ell_weights
+    params['b_channel_weight'] = args.b_channel_weight
+else:
+    params['loss_name'] = args.loss
 
 config.update_hparams(params)
 
