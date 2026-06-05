@@ -6,6 +6,7 @@ import torch
 import torch.nn.functional as F
 from lightning.pytorch import Trainer, seed_everything
 from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor, TQDMProgressBar, EarlyStopping
+from lightning.pytorch.strategies import DDPStrategy
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.profilers import PyTorchProfiler
 
@@ -29,6 +30,12 @@ def parse_args():
     parser.add_argument("--low-ell-weights", type=float, nargs=len(config.BANDS), default=[4.0, 2.0, 1.0, 1.0])
     parser.add_argument("--b-channel-weight", type=float, default=1.0)
     return parser.parse_args()
+
+
+def training_strategy():
+    if config.MAC:
+        return 'auto'
+    return DDPStrategy()
 
 
 def build_loss(args):
@@ -132,7 +139,7 @@ trainer = Trainer(
     gradient_clip_val=config.GRADIENT_CLIP_VAL,
     accelerator='gpu' if not config.MAC else 'auto',
     devices=-1 if not config.MAC else 'auto',
-    strategy='ddp' if not config.MAC else 'auto',
+    strategy=training_strategy(),
     sync_batchnorm=not config.MAC,
     precision=config.PRECISION if not config.MAC else '32-true',
     logger=TensorBoardLogger('tlogs', name=RUN_NAME),

@@ -1,3 +1,4 @@
+import os
 from sys import platform
 
 # ── Environment ───────────────────────────────────────────────────────
@@ -23,9 +24,11 @@ MASK_APOTYPE = 'C2'     # nmt apotype
 # ── Data handling ─────────────────────────────────────────────────────
 BATCH_SIZE = 8
 NUM_WORKERS = 16
+if not MAC and 'SLURM_CPUS_PER_TASK' in os.environ:
+    NUM_WORKERS = min(NUM_WORKERS, int(os.environ['SLURM_CPUS_PER_TASK']))
 PREFETCH_FACTOR = 4
 PIN_MEMORY = True
-PRECISION = '16-mixed'
+PRECISION = '32-true'
 
 # ── HRM architecture ─────────────────────────────────────────────────
 INPUT_DIM = 4                       # [Re_E, Im_E, Re_B, Im_B]
