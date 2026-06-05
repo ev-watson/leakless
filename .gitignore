@@ -24,6 +24,8 @@ prompts/
 reference-sheets/
 get_ckpts.sh
 workspace.ipynb
+GPD/
+figures/
 
 # scaler artifacts
 scaler.pkl
